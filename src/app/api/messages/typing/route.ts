@@ -1,19 +1,21 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getSessionUser } from '@/lib/auth';
 import { broadcastTyping } from '@/lib/chatEvents';
 
 export async function POST(request: NextRequest) {
   try {
-    const body = await request.json();
-    const { senderId, recipientId, senderName, isTyping } = body;
+    const user = await getSessionUser();
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-    if (!senderId || !recipientId) {
-      return NextResponse.json({ error: 'Missing senderId or recipientId' }, { status: 400 });
+    const { recipientId, isTyping } = await request.json();
+    if (!recipientId) {
+      return NextResponse.json({ error: 'Missing recipientId' }, { status: 400 });
     }
 
     broadcastTyping({
-      senderId,
+      senderId: user.id,
       recipientId,
-      senderName: senderName || 'Seseorang',
+      senderName: user.name,
       isTyping: Boolean(isTyping),
     });
 

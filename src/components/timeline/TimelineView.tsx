@@ -332,7 +332,7 @@ export function TimelineView() {
       </div>
 
       {/* Responsive Gantt Calendar Container */}
-      <div className="flex-1 overflow-x-auto overflow-y-auto touch-pan-x scroll-smooth bg-white dark:bg-[#111726] border border-[#cbd5e1] dark:border-[#1e2a3f] rounded-2xl shadow-xs flex flex-col min-h-0">
+      <div className="isolate flex-1 overflow-x-auto overflow-y-auto touch-pan-x scroll-smooth bg-white dark:bg-[#111726] border border-[#cbd5e1] dark:border-[#1e2a3f] rounded-2xl shadow-xs flex flex-col min-h-0">
         <div
           className="flex-1 flex flex-col"
           style={{

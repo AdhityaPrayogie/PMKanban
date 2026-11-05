@@ -23,6 +23,7 @@ import {
 } from 'lucide-react';
 import { cn, formatLastActive } from '@/lib/utils';
 import { useDebounce } from '@/hooks/useDebounce';
+import { subscribeRealtime } from '@/lib/realtime';
 
 export default function MessagesPage() {
   const router = useRouter();
@@ -74,10 +75,11 @@ export default function MessagesPage() {
     };
     init();
 
-    // Periodic users refresh to update online/last seen presence
+    // Presence refresh. "Online" = active within 3 min and last_active_at is written at most once/min,
+    // so polling faster than 60s shows nothing new. Skipped while the tab is hidden.
     const userTimer = setInterval(() => {
-      fetchUsers();
-    }, 6000);
+      if (document.visibilityState === 'visible') fetchUsers();
+    }, 60000);
     return () => clearInterval(userTimer);
   }, []);
 
@@ -102,7 +104,7 @@ export default function MessagesPage() {
     const loadConversation = async () => {
       try {
         const res = await fetch(
-          `/api/messages?userOne=${activeUser.id}&userTwo=${selectedUser.id}&userId=${activeUser.id}`
+          `/api/messages?with=${selectedUser.id}`
         );
         const data = await res.json();
         if (data.messages && isSubscribed) {
@@ -117,11 +119,8 @@ export default function MessagesPage() {
     loadConversation();
 
     // Connect to Server-Sent Events (SSE) for instant real-time message delivery
-    const eventSource = new EventSource(`/api/messages/sse?userId=${activeUser.id}`);
-
-    eventSource.addEventListener('message', (event) => {
-      try {
-        const newMsg: Message = JSON.parse(event.data);
+    const unsubscribe = subscribeRealtime({
+      message: (newMsg: Message) => {
         const isCurrentPair =
           newMsg.sender_id === selectedUser.id || newMsg.sender_id === activeUser.id;
 
@@ -145,52 +144,34 @@ export default function MessagesPage() {
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
                 conversationId: newMsg.conversation_id || conversationIdRef.current,
-                userId: activeUser.id,
               }),
             }).catch(() => {});
           }
         }
-        fetchNotifications();
-      } catch (err) {
-        console.error('Error handling SSE message in Messages page:', err);
-      }
-    });
-
-    eventSource.addEventListener('read', (event) => {
-      try {
-        const { readerId } = JSON.parse(event.data);
+      },
+      read: ({ readerId }) => {
         if (readerId === selectedUser.id) {
           setMessages((prev) =>
             prev.map((m) => (m.sender_id === activeUser.id ? { ...m, is_read: true } : m))
           );
         }
-      } catch (err) {
-        console.error('Error handling SSE read event in Messages page:', err);
-      }
-    });
-
-    eventSource.addEventListener('typing', (event) => {
-      try {
-        const { senderId, recipientId, isTyping } = JSON.parse(event.data);
-        if (senderId === selectedUser.id && recipientId === activeUser.id) {
+      },
+      typing: ({ senderId, isTyping }) => {
+        if (senderId === selectedUser.id) {
           setIsPartnerTyping(Boolean(isTyping));
           if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
           if (isTyping) {
-            typingTimeoutRef.current = setTimeout(() => {
-              setIsPartnerTyping(false);
-            }, 3000);
+            typingTimeoutRef.current = setTimeout(() => setIsPartnerTyping(false), 3000);
           }
         }
-      } catch (err) {
-        console.error('Error handling SSE typing in Messages page:', err);
-      }
+      },
     });
 
     const fallbackTimer = setInterval(loadConversation, 30000);
 
     return () => {
       isSubscribed = false;
-      eventSource.close();
+      unsubscribe();
       clearInterval(fallbackTimer);
       if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
     };
@@ -208,7 +189,6 @@ export default function MessagesPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           conversationId,
-          userId: activeUser.id,
         }),
       }).catch(() => {});
     }
@@ -232,9 +212,7 @@ export default function MessagesPage() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        senderId: activeUser.id,
         recipientId: selectedUser.id,
-        senderName: activeUser.name,
         isTyping,
       }),
     }).catch(() => {});
@@ -288,7 +266,6 @@ export default function MessagesPage() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           conversationId,
-          senderId: activeUser.id,
           recipientId: selectedUser.id,
           content,
           imageUrl: uploadedImageUrl,
@@ -610,7 +587,7 @@ export default function MessagesPage() {
                     <input
                       ref={imageInputRef}
                       type="file"
-                      accept="image/*,.png,.jpg,.jpeg,.webp,.gif,.svg"
+                      accept=".png,.jpg,.jpeg,.webp,.gif"
                       className="hidden"
                       onChange={handleSelectImage}
                     />

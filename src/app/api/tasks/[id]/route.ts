@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { execute, query } from '@/lib/db';
+import { getSessionUser } from '@/lib/auth';
 import { Comment, Label, Task, User } from '@/types';
 
 export async function GET(
@@ -7,6 +8,7 @@ export async function GET(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    if (!(await getSessionUser())) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     const { id } = await params;
 
     const taskRows = await query<Task[]>('SELECT * FROM tasks WHERE id = ?', [id]);
@@ -208,6 +210,7 @@ export async function PUT(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    if (!(await getSessionUser())) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     const { id } = await params;
     const body = await request.json();
     const {

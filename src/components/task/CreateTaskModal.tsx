@@ -148,8 +148,7 @@ export function CreateTaskModal() {
           priority,
           startDate: startDate || null,
           dueDate: dueDate || null,
-          creatorId: activeUser.id,
-          assigneeIds: selectedAssignees,
+            assigneeIds: selectedAssignees,
           labelIds: selectedLabels,
         }),
       });

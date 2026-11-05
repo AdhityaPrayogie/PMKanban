@@ -3,9 +3,11 @@ import { execute, query } from '@/lib/db';
 import { getSessionUser } from '@/lib/auth';
 import { MasterUnit } from '@/types';
 import { randomUUID } from 'crypto';
+import { broadcastNotification } from '@/lib/chatEvents';
 
 export async function GET() {
   try {
+    if (!(await getSessionUser())) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     const units = await query<MasterUnit[]>(
       `SELECT u.*,
         (SELECT COUNT(*) FROM users usr WHERE usr.unit_id = u.id OR usr.unit_name = u.code) as users_count,
@@ -56,16 +58,15 @@ export async function POST(request: NextRequest) {
     );
 
     // Emit system notification
+    const notifId = randomUUID();
+    const notifTitle = 'Master Unit Baru Ditambahkan';
+    const notifMessage = `Unit "${cleanName}" (${cleanCode}) berhasil ditambahkan ke master table units.`;
     await execute(
       `INSERT INTO notifications (id, user_id, title, message, type, related_task_id)
        VALUES (?, ?, ?, ?, 'system', NULL)`,
-      [
-        randomUUID(),
-        user.id,
-        'Master Unit Baru Ditambahkan',
-        `Unit "${cleanName}" (${cleanCode}) berhasil ditambahkan ke master table units.`,
-      ]
+      [notifId, user.id, notifTitle, notifMessage]
     );
+    broadcastNotification({ id: notifId, user_id: user.id, title: notifTitle, message: notifMessage, type: 'system', related_task_id: null, is_read: false });
 
     return NextResponse.json({
       success: true,

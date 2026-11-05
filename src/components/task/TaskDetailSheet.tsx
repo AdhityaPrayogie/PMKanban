@@ -97,7 +97,7 @@ export function TaskDetailSheet() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const ALLOWED_EXTENSIONS = [
-    '.png', '.jpg', '.jpeg', '.webp', '.gif', '.svg',
+    '.png', '.jpg', '.jpeg', '.webp', '.gif',
     '.doc', '.docx', '.pdf', '.md', '.markdown',
     '.xls', '.xlsx', '.csv',
     '.zip', '.rar', '.7z', '.tar', '.gz',
@@ -138,7 +138,7 @@ export function TaskDetailSheet() {
     const ext = '.' + (file.name.toLowerCase().split('.').pop() || '');
     if (!ALLOWED_EXTENSIONS.includes(ext)) {
       setUploadError(
-        'Tipe berkas tidak didukung! Hanya diperbolehkan upload Gambar (IMG: .png, .jpg, .webp, .svg), Dokumen (.doc, .docx), PDF (.pdf), Markdown (.md), Excel (.xls, .xlsx, .csv), dan Arsip (.zip, .rar, .7z).'
+        'Tipe berkas tidak didukung! Hanya diperbolehkan upload Gambar (IMG: .png, .jpg, .webp, .gif), Dokumen (.doc, .docx), PDF (.pdf), Markdown (.md), Excel (.xls, .xlsx, .csv), dan Arsip (.zip, .rar, .7z).'
       );
       if (fileInputRef.current) fileInputRef.current.value = '';
       return;
@@ -152,7 +152,6 @@ export function TaskDetailSheet() {
 
     const formData = new FormData();
     formData.append('file', file);
-    if (activeUser?.id) formData.append('userId', activeUser.id);
 
     setIsUploading(true);
     try {
@@ -389,7 +388,6 @@ export function TaskDetailSheet() {
         priority: draftPriority,
         start_date: draftStartDate || null,
         due_date: draftDueDate || null,
-        userId: activeUser?.id,
       };
 
       const res = await fetch('/api/tasks', {
@@ -494,7 +492,6 @@ export function TaskDetailSheet() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          userId: activeUser.id,
           content: newComment.trim(),
           imageUrl: uploadedImageUrl,
         }),
@@ -1006,7 +1003,7 @@ export function TaskDetailSheet() {
                     ref={fileInputRef}
                     type="file"
                     className="hidden"
-                    accept=".png,.jpg,.jpeg,.webp,.gif,.svg,.doc,.docx,.pdf,.md,.markdown,.xls,.xlsx,.csv,.zip,.rar,.7z,.tar,.gz,image/*,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv,application/zip,application/x-zip-compressed,application/x-rar-compressed,application/x-7z-compressed,text/markdown"
+                    accept=".png,.jpg,.jpeg,.webp,.gif,.doc,.docx,.pdf,.md,.markdown,.xls,.xlsx,.csv,.zip,.rar,.7z,.tar,.gz,image/*,application/pdf,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv,application/zip,application/x-zip-compressed,application/x-rar-compressed,application/x-7z-compressed,text/markdown"
                     onChange={handleFileUpload}
                   />
                   <button
@@ -1398,7 +1395,7 @@ export function TaskDetailSheet() {
                       <input
                         ref={commentImageInputRef}
                         type="file"
-                        accept="image/*,.png,.jpg,.jpeg,.webp,.gif,.svg"
+                        accept=".png,.jpg,.jpeg,.webp,.gif"
                         className="hidden"
                         onChange={handleSelectCommentImage}
                       />

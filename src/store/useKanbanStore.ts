@@ -253,7 +253,7 @@ export const useKanbanStore = create<KanbanState>((set, get) => ({
     try {
       const { activeUser } = get();
       if (!activeUser) return;
-      const res = await fetch(`/api/notifications?userId=${activeUser.id}`);
+      const res = await fetch('/api/notifications');
       const data = await res.json();
       if (data.notifications) {
         set({
@@ -271,7 +271,7 @@ export const useKanbanStore = create<KanbanState>((set, get) => ({
     try {
       const { activeUser } = get();
       if (!activeUser) return;
-      const res = await fetch(`/api/messages?userId=${activeUser.id}`);
+      const res = await fetch(`/api/messages`);
       const data = await res.json();
       if (typeof data.totalUnreadMessages === 'number') {
         set({ unreadMessagesCount: data.totalUnreadMessages });
@@ -288,7 +288,7 @@ export const useKanbanStore = create<KanbanState>((set, get) => ({
       await fetch('/api/notifications', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userId: activeUser.id, markAll: true }),
+        body: JSON.stringify({ markAll: true }),
       });
       set((state) => ({
         notifications: state.notifications.map((n) => ({ ...n, is_read: true })),
@@ -537,7 +537,6 @@ export const useKanbanStore = create<KanbanState>((set, get) => ({
           id: taskId,
           column_id: targetColId,
           position: newPosition,
-          userId: get().activeUser?.id,
         }),
       });
     } catch (err) {

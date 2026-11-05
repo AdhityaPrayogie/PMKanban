@@ -47,6 +47,8 @@ export function verifyToken<T = any>(token: string): T | null {
   }
 }
 
+const lastActiveWrite = new Map<string, number>();
+
 export async function getSessionUser(): Promise<User | null> {
   try {
     const cookieStore = await cookies();
@@ -55,8 +57,12 @@ export async function getSessionUser(): Promise<User | null> {
     const payload = verifyToken<{ id: string }>(token);
     if (!payload?.id) return null;
 
-    // Update last_active_at to keep online status accurate
-    await query('UPDATE users SET last_active_at = NOW() WHERE id = ?', [payload.id]);
+    // ponytail: per-process throttle (1 write/min/user); presence only needs ~3 min precision
+    const now = Date.now();
+    if (now - (lastActiveWrite.get(payload.id) ?? 0) > 60_000) {
+      lastActiveWrite.set(payload.id, now);
+      await query('UPDATE users SET last_active_at = NOW() WHERE id = ?', [payload.id]);
+    }
 
     const rows = await query<User[]>(
       'SELECT id, name, email, avatar_url, role, status, last_active_at FROM users WHERE id = ?',

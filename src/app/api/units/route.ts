@@ -6,6 +6,7 @@ import { broadcastNotification } from '@/lib/chatEvents';
 
 export async function GET() {
   try {
+    if (!(await getSessionUser())) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     const units = await query<any[]>(
       `SELECT p.*,
         COALESCE(p.unit_tag, 'IT') as unit_tag,
@@ -190,6 +191,11 @@ export async function DELETE(request: NextRequest) {
 
     if (!unitId) {
       return NextResponse.json({ error: 'Unit ID wajib diisi' }, { status: 400 });
+    }
+
+    const owner = await query<any[]>('SELECT owner_id FROM projects WHERE id = ?', [unitId]);
+    if (owner.length && owner[0].owner_id !== user.id && user.role !== 'admin') {
+      return NextResponse.json({ error: 'Hanya pemilik board atau admin yang bisa menghapus' }, { status: 403 });
     }
 
     // Check count of projects

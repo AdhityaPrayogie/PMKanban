@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { execute, query } from '@/lib/db';
 import { getSessionUser } from '@/lib/auth';
 import { randomUUID } from 'crypto';
+import { broadcastNotification } from '@/lib/chatEvents';
 
 
 export async function GET() {
@@ -61,16 +62,15 @@ export async function PATCH(request: Request) {
 
     // If status changed to active, send notification to user
     if (status === 'active') {
+      const notifId = randomUUID();
+      const title = 'Akun Anda Telah Disetujui!';
+      const message = 'Selamat, pendaftaran akun Anda telah di-ACC oleh Administrator. Anda sekarang dapat mengakses seluruh fitur.';
       await execute(
         `INSERT INTO notifications (id, user_id, title, message, type, related_task_id)
          VALUES (?, ?, ?, ?, 'system', NULL)`,
-        [
-          randomUUID(),
-          userId,
-          'Akun Anda Telah Disetujui!',
-          'Selamat, pendaftaran akun Anda telah di-ACC oleh Administrator. Anda sekarang dapat mengakses seluruh fitur.',
-        ]
+        [notifId, userId, title, message]
       );
+      broadcastNotification({ id: notifId, user_id: userId, title, message, type: 'system', related_task_id: null, is_read: false });
     }
 
     return NextResponse.json({ success: true });

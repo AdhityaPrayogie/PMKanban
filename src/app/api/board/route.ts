@@ -1,9 +1,14 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { query } from '@/lib/db';
-import { BoardColumn, Label, Project, Task, User } from '@/types';
+import { getSessionUser } from '@/lib/auth';
+import { BoardColumn, Label, Project, Task } from '@/types';
 
 export async function GET(request: NextRequest) {
   try {
+    if (!(await getSessionUser())) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const searchParams = request.nextUrl.searchParams;
     const projectIdParam = searchParams.get('projectId');
 
@@ -26,46 +31,43 @@ export async function GET(request: NextRequest) {
       ? projects.find((p) => p.id === projectIdParam) || projects[0]
       : projects[0];
 
-    // Fetch columns
-    const columns = await query<BoardColumn[]>(
-      'SELECT * FROM board_columns WHERE project_id = ? ORDER BY position ASC',
-      [currentProject.id]
-    );
-
-    // Fetch all tasks for this project (both parent tasks and sub-tasks)
-    const allTasks = await query<any[]>(
-      `SELECT t.*, 
-        (SELECT COUNT(*) FROM comments c WHERE c.task_id = t.id) as comments_count
-       FROM tasks t
-       WHERE t.project_id = ?
-       ORDER BY t.position ASC`,
-      [currentProject.id]
-    );
-
-    // Fetch assignees for all tasks
-    const assignees = await query<any[]>(
-      `SELECT ta.task_id, u.id, u.name, u.email, u.avatar_url
-       FROM task_assignees ta
-       JOIN users u ON ta.user_id = u.id
-       JOIN tasks t ON ta.task_id = t.id
-       WHERE t.project_id = ?`,
-      [currentProject.id]
-    );
-
-    // Fetch labels for all tasks
-    const taskLabels = await query<any[]>(
-      `SELECT tl.task_id, l.id, l.name, l.color, l.project_id
-       FROM task_labels tl
-       JOIN labels l ON tl.label_id = l.id
-       WHERE l.project_id = ?`,
-      [currentProject.id]
-    );
-
-    // Fetch master labels
-    const masterLabels = await query<Label[]>(
-      'SELECT * FROM labels WHERE project_id = ? ORDER BY name ASC',
-      [currentProject.id]
-    );
+    const pid = currentProject.id;
+    // Independent reads: run in parallel (pool has 15 connections)
+    const [columns, allTasks, assignees, taskLabels, masterLabels, attachmentCounts] = await Promise.all([
+      query<BoardColumn[]>('SELECT * FROM board_columns WHERE project_id = ? ORDER BY position ASC', [pid]),
+      query<any[]>(
+        `SELECT t.*,
+          (SELECT COUNT(*) FROM comments c WHERE c.task_id = t.id) as comments_count
+         FROM tasks t
+         WHERE t.project_id = ?
+         ORDER BY t.position ASC`,
+        [pid]
+      ),
+      query<any[]>(
+        `SELECT ta.task_id, u.id, u.name, u.email, u.avatar_url
+         FROM task_assignees ta
+         JOIN users u ON ta.user_id = u.id
+         JOIN tasks t ON ta.task_id = t.id
+         WHERE t.project_id = ?`,
+        [pid]
+      ),
+      query<any[]>(
+        `SELECT tl.task_id, l.id, l.name, l.color, l.project_id
+         FROM task_labels tl
+         JOIN labels l ON tl.label_id = l.id
+         WHERE l.project_id = ?`,
+        [pid]
+      ),
+      query<Label[]>('SELECT * FROM labels WHERE project_id = ? ORDER BY name ASC', [pid]),
+      // Scoped to this project (was: whole task_attachments table)
+      query<any[]>(
+        `SELECT a.task_id, COUNT(*) as count
+         FROM task_attachments a JOIN tasks t ON a.task_id = t.id
+         WHERE t.project_id = ?
+         GROUP BY a.task_id`,
+        [pid]
+      ).catch(() => [] as any[]),
+    ]);
 
     // Map assignees and labels to tasks
     const taskMap = new Map<string, Task>();
@@ -115,20 +117,10 @@ export async function GET(request: NextRequest) {
       }
     });
 
-    // Populate attachment counts
-    try {
-      const attachmentCounts = await query<any[]>(
-        `SELECT task_id, COUNT(*) as count FROM task_attachments GROUP BY task_id`
-      );
-      (attachmentCounts || []).forEach((ac) => {
-        const task = taskMap.get(ac.task_id);
-        if (task) {
-          task.attachments_count = Number(ac.count);
-        }
-      });
-    } catch {
-      // Table may not have data yet, ignore
-    }
+    attachmentCounts.forEach((ac) => {
+      const task = taskMap.get(ac.task_id);
+      if (task) task.attachments_count = Number(ac.count);
+    });
 
     // Separate parent tasks and attach sub-tasks
     const parentTasks: Task[] = [];

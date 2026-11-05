@@ -2,21 +2,25 @@ import { NextResponse } from 'next/server';
 import { execute, query } from '@/lib/db';
 import { randomUUID } from 'crypto';
 import { broadcastNotification } from '@/lib/chatEvents';
+import { getSessionUser } from '@/lib/auth';
 
 export async function POST(
   request: Request,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const user = await getSessionUser();
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const userId = user.id;
     const { id: taskId } = await params;
     const body = await request.json();
-    const { userId, content, imageUrl, image_url } = body;
+    const { content, imageUrl, image_url } = body;
     const finalImageUrl = imageUrl || image_url || null;
     const trimmedContent = (content || '').trim();
 
-    if (!userId || (!trimmedContent && !finalImageUrl)) {
+    if (!trimmedContent && !finalImageUrl) {
       return NextResponse.json(
-        { error: 'userId serta pesan teks atau gambar diperlukan' },
+        { error: 'Pesan teks atau gambar diperlukan' },
         { status: 400 }
       );
     }
@@ -30,10 +34,9 @@ export async function POST(
     );
 
     // Fetch commenter details and task title
-    const userRows = await query<any[]>('SELECT name FROM users WHERE id = ?', [userId]);
     const taskRows = await query<any[]>('SELECT title, creator_id FROM tasks WHERE id = ?', [taskId]);
 
-    const commenterName = userRows[0]?.name || 'A teammate';
+    const commenterName = user.name;
     const taskTitle = taskRows[0]?.title || 'Task';
     const taskCreatorId = taskRows[0]?.creator_id;
 

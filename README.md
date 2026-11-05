@@ -200,7 +200,7 @@ npm run lint     # ESLint
 1. User register → status `pending`, semua admin dapat notifikasi.
 2. Admin approve di menu **Kelola Pengguna** → status `active`.
 3. Login → cookie `auth_token` (berlaku 7 hari).
-4. `src/proxy.ts` me-redirect halaman non-API ke `/login` jika cookie tidak ada; validasi token dilakukan di dalam route API lewat `getSessionUser()`. Route `/api/*` tidak dicegat proxy, jadi tiap route harus memeriksa sesi sendiri (contoh: `/api/board` saat ini tidak memeriksa).
+4. `src/proxy.ts` me-redirect halaman non-API ke `/login` jika cookie tidak ada; validasi token dilakukan di dalam route API lewat `getSessionUser()`. Route `/api/*` tidak dicegat proxy, jadi tiap route harus memeriksa sesi sendiri dan mengambil identitas dari sesi, bukan dari `userId` di request.
 
 ## Catatan & Batasan
 

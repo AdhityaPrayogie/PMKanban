@@ -1,9 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { execute, query } from '@/lib/db';
 import { randomUUID } from 'crypto';
+import { getSessionUser } from '@/lib/auth';
 
 export async function POST(request: Request) {
   try {
+    if (!(await getSessionUser())) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     const body = await request.json();
     const { projectId, title } = body;
 
@@ -41,6 +43,7 @@ export async function POST(request: Request) {
 
 export async function PATCH(request: Request) {
   try {
+    if (!(await getSessionUser())) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     const body = await request.json();
     const { id, title, position } = body;
 
@@ -76,6 +79,7 @@ export async function PATCH(request: Request) {
 
 export async function DELETE(request: NextRequest) {
   try {
+    if (!(await getSessionUser())) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     const searchParams = request.nextUrl.searchParams;
     const id = searchParams.get('id');
 

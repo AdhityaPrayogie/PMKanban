@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { execute, query } from '@/lib/db';
 import { hashPassword } from '@/lib/auth';
 import { randomUUID } from 'crypto';
+import { broadcastNotification } from '@/lib/chatEvents';
 
 
 export async function POST(request: Request) {
@@ -37,17 +38,16 @@ export async function POST(request: Request) {
 
     // Notify all admin users about the pending registration
     const admins = await query<any[]>("SELECT id FROM users WHERE role = 'admin'");
+    const title = 'Pendaftaran Pengguna Baru Menunggu ACC';
+    const message = `Pengguna ${name.trim()} (${cleanEmail}) baru saja mendaftar dan menunggu persetujuan Anda di menu Kelola Pengguna.`;
     for (const admin of admins) {
+      const notifId = randomUUID();
       await execute(
         `INSERT INTO notifications (id, user_id, title, message, type, related_task_id)
          VALUES (?, ?, ?, ?, 'system', NULL)`,
-        [
-          randomUUID(),
-          admin.id,
-          'Pendaftaran Pengguna Baru Menunggu ACC',
-          `Pengguna ${name.trim()} (${cleanEmail}) baru saja mendaftar dan menunggu persetujuan Anda di menu Kelola Pengguna.`,
-        ]
+        [notifId, admin.id, title, message]
       );
+      broadcastNotification({ id: notifId, user_id: admin.id, title, message, type: 'system', related_task_id: null, is_read: false });
     }
 
     return NextResponse.json({

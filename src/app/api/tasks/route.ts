@@ -7,6 +7,9 @@ import { getSessionUser } from '@/lib/auth';
 
 export async function POST(request: Request) {
   try {
+    const user = await getSessionUser();
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const creatorId = user.id;
     const body = await request.json();
     const {
       projectId,
@@ -19,14 +22,13 @@ export async function POST(request: Request) {
       priority = 'Medium',
       startDate = null,
       dueDate = null,
-      creatorId,
       assigneeIds = [],
       labelIds = [],
     } = body;
 
-    if (!projectId || !columnId || !title || !creatorId) {
+    if (!projectId || !columnId || !title) {
       return NextResponse.json(
-        { error: 'projectId, columnId, title, and creatorId are required' },
+        { error: 'projectId, columnId, and title are required' },
         { status: 400 }
       );
     }
@@ -180,6 +182,8 @@ export async function POST(request: Request) {
 
 export async function PATCH(request: Request) {
   try {
+    const sessionUser = await getSessionUser();
+    if (!sessionUser) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     const body = await request.json();
     const {
       id,
@@ -194,7 +198,6 @@ export async function PATCH(request: Request) {
       start_date,
       due_date,
       parent_id,
-      userId,
     } = body;
 
     if (!id) {
@@ -265,8 +268,7 @@ export async function PATCH(request: Request) {
     }
 
     // Collect field modifications for Activity Log
-    const sessionUser = await getSessionUser();
-    const modifierId = userId || sessionUser?.id || creatorId;
+    const modifierId = sessionUser.id;
     const changes: any[] = [];
 
     if (title !== undefined && title.trim() && title.trim() !== currentTask[0].title) {
@@ -481,6 +483,7 @@ export async function PATCH(request: Request) {
 
 export async function DELETE(request: NextRequest) {
   try {
+    if (!(await getSessionUser())) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     const searchParams = request.nextUrl.searchParams;
     const id = searchParams.get('id');
 
@@ -490,16 +493,15 @@ export async function DELETE(request: NextRequest) {
 
     const currentTask = await query<any[]>('SELECT title, creator_id FROM tasks WHERE id = ?', [id]);
     if (currentTask.length > 0) {
+      const notifId = randomUUID();
+      const title = 'Tugas Telah Dihapus';
+      const message = `Tugas "${currentTask[0].title}" telah berhasil dihapus dari papan.`;
       await execute(
         `INSERT INTO notifications (id, user_id, title, message, type, related_task_id)
          VALUES (?, ?, ?, ?, 'system', NULL)`,
-        [
-          randomUUID(),
-          currentTask[0].creator_id,
-          'Tugas Telah Dihapus',
-          `Tugas "${currentTask[0].title}" telah berhasil dihapus dari papan.`,
-        ]
+        [notifId, currentTask[0].creator_id, title, message]
       );
+      broadcastNotification({ id: notifId, user_id: currentTask[0].creator_id, title, message, type: 'system', related_task_id: null, is_read: false });
     }
 
     await execute('DELETE FROM tasks WHERE id = ?', [id]);

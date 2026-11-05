@@ -5,6 +5,7 @@ import { MessageSquare, X, Send, Minus, ChevronUp, Image as ImageIcon, Loader2, 
 import { useKanbanStore } from '@/store/useKanbanStore';
 import { Message, User } from '@/types';
 import { cn } from '@/lib/utils';
+import { subscribeRealtime } from '@/lib/realtime';
 
 export function MiniChatWidget() {
   const {
@@ -45,7 +46,7 @@ export function MiniChatWidget() {
     const loadChat = async () => {
       try {
         const res = await fetch(
-          `/api/messages?userOne=${activeUser.id}&userTwo=${miniChatUser.id}&userId=${activeUser.id}`
+          `/api/messages?with=${miniChatUser.id}`
         );
         const data = await res.json();
         if (data.messages && isSubscribed) {
@@ -60,11 +61,8 @@ export function MiniChatWidget() {
     loadChat();
 
     // Connect to Server-Sent Events (SSE) for instant real-time message delivery
-    const eventSource = new EventSource(`/api/messages/sse?userId=${activeUser.id}`);
-
-    eventSource.addEventListener('message', (event) => {
-      try {
-        const newMsg: Message = JSON.parse(event.data);
+    const unsubscribe = subscribeRealtime({
+      message: (newMsg: Message) => {
         const isCurrentPair =
           newMsg.sender_id === miniChatUser.id || newMsg.sender_id === activeUser.id;
 
@@ -88,44 +86,27 @@ export function MiniChatWidget() {
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({
                 conversationId: newMsg.conversation_id || conversationIdRef.current,
-                userId: activeUser.id,
               }),
             }).catch(() => {});
           }
         }
-      } catch (err) {
-        console.error('Error handling SSE message in MiniChat:', err);
-      }
-    });
-
-    eventSource.addEventListener('read', (event) => {
-      try {
-        const { readerId } = JSON.parse(event.data);
+      },
+      read: ({ readerId }) => {
         if (readerId === miniChatUser.id) {
           setMessages((prev) =>
             prev.map((m) => (m.sender_id === activeUser.id ? { ...m, is_read: true } : m))
           );
         }
-      } catch (err) {
-        console.error('Error handling SSE read event in MiniChat:', err);
-      }
-    });
-
-    eventSource.addEventListener('typing', (event) => {
-      try {
-        const { senderId, recipientId, isTyping } = JSON.parse(event.data);
-        if (senderId === miniChatUser.id && recipientId === activeUser.id) {
+      },
+      typing: ({ senderId, isTyping }) => {
+        if (senderId === miniChatUser.id) {
           setIsPartnerTyping(Boolean(isTyping));
           if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
           if (isTyping) {
-            typingTimeoutRef.current = setTimeout(() => {
-              setIsPartnerTyping(false);
-            }, 3000);
+            typingTimeoutRef.current = setTimeout(() => setIsPartnerTyping(false), 3000);
           }
         }
-      } catch (err) {
-        console.error('Error handling SSE typing in MiniChat:', err);
-      }
+      },
     });
 
     // Fallback sync every 30s in case of connection drop
@@ -133,7 +114,7 @@ export function MiniChatWidget() {
 
     return () => {
       isSubscribed = false;
-      eventSource.close();
+      unsubscribe();
       clearInterval(fallbackTimer);
       if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
     };
@@ -152,7 +133,6 @@ export function MiniChatWidget() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           conversationId,
-          userId: activeUser.id,
         }),
       })
         .then(() => fetchUnreadMessagesCount())
@@ -200,9 +180,7 @@ export function MiniChatWidget() {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        senderId: activeUser.id,
         recipientId: miniChatUser.id,
-        senderName: activeUser.name,
         isTyping,
       }),
     }).catch(() => {});
@@ -256,7 +234,6 @@ export function MiniChatWidget() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           conversationId,
-          senderId: activeUser.id,
           recipientId: miniChatUser.id,
           content: textToSend,
           imageUrl: uploadedImageUrl,
@@ -452,7 +429,7 @@ export function MiniChatWidget() {
               <input
                 ref={chatImageInputRef}
                 type="file"
-                accept="image/*,.png,.jpg,.jpeg,.webp,.gif,.svg"
+                accept=".png,.jpg,.jpeg,.webp,.gif"
                 className="hidden"
                 onChange={handleSelectImage}
               />

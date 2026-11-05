@@ -1,9 +1,11 @@
 import { NextRequest } from 'next/server';
 import { chatEmitter } from '@/lib/chatEvents';
+import { getSessionUser } from '@/lib/auth';
 
 export async function GET(request: NextRequest) {
-  const searchParams = request.nextUrl.searchParams;
-  const userId = searchParams.get('userId');
+  const user = await getSessionUser();
+  if (!user) return new Response('Unauthorized', { status: 401 });
+  const userId = user.id;
 
   let isClosed = false;
   let cleanup = () => {};
@@ -27,14 +29,7 @@ export async function GET(request: NextRequest) {
       const onMessageHandler = (message: any) => {
         if (isClosed) return;
         // Deliver message only to recipient or sender
-        if (
-          userId &&
-          message.recipient_id &&
-          message.recipient_id !== userId &&
-          message.sender_id !== userId
-        ) {
-          return;
-        }
+        if (message.recipient_id !== userId && message.sender_id !== userId) return;
         try {
           controller.enqueue(
             encoder.encode(`event: message\ndata: ${JSON.stringify(message)}\n\n`)
@@ -50,14 +45,7 @@ export async function GET(request: NextRequest) {
       const onTypingHandler = (typingData: any) => {
         if (isClosed) return;
         // Deliver typing indicator only to the intended recipient
-        if (
-          userId &&
-          typingData.recipientId &&
-          typingData.recipientId !== userId &&
-          typingData.senderId !== userId
-        ) {
-          return;
-        }
+        if (typingData.recipientId !== userId) return;
         try {
           controller.enqueue(
             encoder.encode(`event: typing\ndata: ${JSON.stringify(typingData)}\n\n`)
@@ -86,7 +74,7 @@ export async function GET(request: NextRequest) {
       // Listener for real-time system & task notifications
       const onNotificationHandler = (notif: any) => {
         if (isClosed) return;
-        if (!notif.user_id || notif.user_id === userId) {
+        if (notif.user_id === userId) {
           try {
             controller.enqueue(
               encoder.encode(`event: notification\ndata: ${JSON.stringify(notif)}\n\n`)

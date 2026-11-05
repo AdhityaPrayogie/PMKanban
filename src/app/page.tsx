@@ -53,12 +53,7 @@ export default function Home() {
     };
 
     init();
-
-    // Periodic sync for notifications
-    const interval = setInterval(() => {
-      fetchNotifications();
-    }, 8000);
-    return () => clearInterval(interval);
+    // Notifications are pushed via SSE (see useRealtime); no polling needed.
   }, []);
 
   if (!authChecked) {

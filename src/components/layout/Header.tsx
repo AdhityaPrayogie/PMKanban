@@ -24,6 +24,7 @@ import {
 } from 'lucide-react';
 import { useKanbanStore } from '@/store/useKanbanStore';
 import { cn, formatDate } from '@/lib/utils';
+import { subscribeRealtime } from '@/lib/realtime';
 import { Priority } from '@/types';
 
 export function Header() {
@@ -134,11 +135,8 @@ export function Header() {
 
     fetchNotifications();
 
-    const eventSource = new EventSource(`/api/messages/sse?userId=${activeUser.id}`);
-
-    eventSource.addEventListener('notification', (event) => {
-      try {
-        const notif = JSON.parse(event.data);
+    const unsubscribe = subscribeRealtime({
+      notification: (notif) => {
         fetchNotifications();
         if (notif.title) {
           setLiveToast({
@@ -151,28 +149,15 @@ export function Header() {
           if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
           toastTimerRef.current = setTimeout(() => setLiveToast(null), 5000);
         }
-      } catch (err) {
-        console.error('Error handling SSE notification in Header:', err);
-      }
-    });
-
-    eventSource.addEventListener('message', (event) => {
-      try {
-        const msg = JSON.parse(event.data);
-        if (msg.sender_id !== activeUser.id) {
-          fetchNotifications();
-        }
-      } catch (err) {
-        console.error('Error handling SSE message in Header:', err);
-      }
-    });
-
-    eventSource.addEventListener('read', () => {
-      fetchNotifications();
+      },
+      // Message arrival is always followed by a 'notification' event, which refetches.
+      read: (data) => {
+        if (data.readerId === activeUser.id) fetchNotifications();
+      },
     });
 
     return () => {
-      eventSource.close();
+      unsubscribe();
       if (toastTimerRef.current) clearTimeout(toastTimerRef.current);
     };
   }, [activeUser?.id, fetchNotifications]);

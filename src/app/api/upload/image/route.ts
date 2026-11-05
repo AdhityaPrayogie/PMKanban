@@ -3,11 +3,14 @@ import { randomUUID } from 'crypto';
 import fs from 'fs/promises';
 import path from 'path';
 import sharp from 'sharp';
+import { getSessionUser } from '@/lib/auth';
 
-const ALLOWED_IMAGE_EXTS = ['.png', '.jpg', '.jpeg', '.webp', '.gif', '.svg'];
+// No .svg: served from our origin, it can carry script
+const ALLOWED_IMAGE_EXTS = ['.png', '.jpg', '.jpeg', '.webp', '.gif'];
 
 export async function POST(request: Request) {
   try {
+    if (!(await getSessionUser())) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     const formData = await request.formData();
     const file = formData.get('file') as File | null;
 
@@ -16,11 +19,10 @@ export async function POST(request: Request) {
     }
 
     const ext = '.' + (file.name.toLowerCase().split('.').pop() || '');
-    const isImageMime = file.type.startsWith('image/');
-
-    if (!ALLOWED_IMAGE_EXTS.includes(ext) && !isImageMime) {
+    // Extension decides the served Content-Type, so it must be whitelisted (MIME is client-controlled)
+    if (!ALLOWED_IMAGE_EXTS.includes(ext)) {
       return NextResponse.json(
-        { error: 'Hanya format gambar (PNG, JPG, WEBP, GIF, SVG) yang diperbolehkan di diskusi dan chat!' },
+        { error: 'Hanya format gambar (PNG, JPG, WEBP, GIF) yang diperbolehkan di diskusi dan chat!' },
         { status: 400 }
       );
     }

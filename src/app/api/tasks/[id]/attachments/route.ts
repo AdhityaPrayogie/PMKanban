@@ -13,7 +13,7 @@ function getAttachmentCategory(fileName: string): AttachmentCategory | null {
   if (parts.length < 2) return null;
   const ext = parts.pop() || '';
 
-  if (['png', 'jpg', 'jpeg', 'webp', 'gif', 'svg'].includes(ext)) {
+  if (['png', 'jpg', 'jpeg', 'webp', 'gif'].includes(ext)) {
     return 'image';
   }
   if (['doc', 'docx'].includes(ext)) {
@@ -40,10 +40,12 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const sessionUser = await getSessionUser();
+    if (!sessionUser) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const userId = sessionUser.id;
     const { id: taskId } = await params;
     const formData = await request.formData();
     const file = formData.get('file') as File | null;
-    const userId = (formData.get('userId') as string) || null;
 
     if (!file) {
       return NextResponse.json({ error: 'Berkas tidak ditemukan' }, { status: 400 });
@@ -138,16 +140,7 @@ export async function POST(
     );
 
     // Fetch uploader info
-    let uploader = undefined;
-    if (userId) {
-      const uploaderRows = await query<any[]>(
-        'SELECT id, name, email, avatar_url FROM users WHERE id = ?',
-        [userId]
-      );
-      if (uploaderRows && uploaderRows.length > 0) {
-        uploader = uploaderRows[0];
-      }
-    }
+    const uploader = { id: sessionUser.id, name: sessionUser.name, email: sessionUser.email, avatar_url: sessionUser.avatar_url };
 
     const attachment: TaskAttachment = {
       id: attachmentId,
@@ -162,9 +155,7 @@ export async function POST(
     };
 
     // Log attachment activity
-    const sessionUser = await getSessionUser();
-    const effectiveUserId = userId || sessionUser?.id;
-    if (effectiveUserId) {
+    {
       try {
         const taskRows = await query<any[]>('SELECT project_id FROM tasks WHERE id = ?', [taskId]);
         const projectId = taskRows[0]?.project_id;
@@ -175,7 +166,7 @@ export async function POST(
             randomUUID(),
             taskId,
             projectId,
-            effectiveUserId,
+            userId,
             JSON.stringify({
               summary: `Mengunggah berkas lampiran "${file.name}"`,
               changes: [{ field: 'Lampiran Berkas', new: file.name }],
@@ -213,6 +204,8 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const sessionUser = await getSessionUser();
+    if (!sessionUser) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     const { id: taskId } = await params;
     const { searchParams } = new URL(request.url);
     const attachmentId = searchParams.get('attachmentId');
@@ -238,8 +231,7 @@ export async function DELETE(
 
       await execute('DELETE FROM task_attachments WHERE id = ?', [attachmentId]);
 
-      const sessionUser = await getSessionUser();
-      if (sessionUser?.id) {
+      {
         try {
           const taskRows = await query<any[]>('SELECT project_id FROM tasks WHERE id = ?', [taskId]);
           const projectId = taskRows[0]?.project_id;
