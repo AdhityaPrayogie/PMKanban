@@ -1,36 +1,210 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# PMkanban
 
-## Getting Started
+Aplikasi **Project Management berbasis Kanban** untuk kolaborasi tim lintas unit kerja (IT, Markom, MFK, PPSDM, Umum, dll). Dibangun dengan Next.js (App Router) dan MySQL.
 
-First, run the development server:
+## Fitur
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+- **Boards Hub**: daftar board per unit dengan stage (`Planning`, `Active`, `Review`, `Completed`) dan sub-board.
+- **Kanban Board**: kolom dan kartu tugas dengan drag-and-drop (`@dnd-kit`).
+- **Task Detail**: prioritas, tanggal mulai/tenggat, assignee, label, customer, tag unit, sub-task, komentar (bisa pakai gambar), lampiran file, dan log aktivitas.
+- **Timeline / Gantt**: tugas utama dengan sub-task bertingkat.
+- **Private Chat (P2P)**: halaman `/messages` dan mini chat widget, real-time lewat **Server-Sent Events**, indikator mengetik, status dibaca, status online.
+- **Notifikasi**: lonceng untuk assignment, mention, deadline, dan sistem.
+- **Autentikasi & Approval**: register, lalu akun berstatus `pending` sampai disetujui admin.
+- **Admin**: kelola pengguna (approve/reject/hapus) dan master unit.
+- **Pengaturan profil**: ubah nama, avatar, password.
+- **Dark mode** dan **keyboard shortcuts**.
+- **Kompresi gambar otomatis** saat upload (via `sharp`).
+
+### Keyboard Shortcuts
+
+| Tombol | Aksi |
+|---|---|
+| `Ctrl + K` / `/` | Fokus ke pencarian |
+| `N` | Buat tugas baru |
+| `B` | Tampilan Kanban |
+| `T` | Tampilan Timeline |
+| `M` | Buka chat |
+| `D` | Ganti light/dark mode |
+| `?` | Bantuan shortcut |
+| `Esc` | Tutup panel/modal |
+
+## Tech Stack
+
+| Bagian | Teknologi |
+|---|---|
+| Framework | Next.js 16 (App Router), React 19, TypeScript |
+| Styling | Tailwind CSS 4, `lucide-react` |
+| State | Zustand |
+| Drag & drop | `@dnd-kit/core`, `@dnd-kit/sortable` |
+| Database | MySQL / MariaDB via `mysql2` (raw SQL, connection pool) |
+| Real-time | Server-Sent Events + `EventEmitter` in-process |
+| Auth | Token HMAC-SHA256 (JWT-style) di cookie `auth_token`, password PBKDF2 |
+| Utilitas | `date-fns`, `clsx`, `tailwind-merge`, `sharp` |
+
+> `prisma/schema.prisma` ada, tetapi **aplikasi tidak memakai Prisma Client**. Semua query lewat `src/lib/db.ts` (`mysql2`). Schema Prisma juga belum mengikuti kolom terbaru.
+
+## Struktur Proyek
+
+```
+PMkanban/
+├── prisma/
+│   └── schema.prisma            # Referensi skema (tidak dipakai runtime)
+├── public/
+│   └── uploads/                 # Dibuat otomatis: attachments/ & chat/
+├── scripts/                     # Migrasi & seed manual (node)
+│   ├── migrate_activity_logs.js # Tabel task_activities
+│   ├── migrate_attachments.js   # Tabel task_attachments
+│   ├── migrate_boards.js        # Kolom board: parent_id, stage, unit_tag, position + data contoh
+│   ├── migrate_master_units.js  # Tabel units + users.unit_id/unit_name
+│   ├── migrate_v3.js            # tasks.customer/unit_tags, users.password_plain
+│   └── seed_units.js            # Board default per unit
+├── src/
+│   ├── app/
+│   │   ├── api/                 # Route handlers (lihat tabel API)
+│   │   ├── login/page.tsx       # Halaman login & register
+│   │   ├── messages/page.tsx    # Chat layar penuh
+│   │   ├── layout.tsx
+│   │   ├── page.tsx             # Halaman utama (Hub / Board / Timeline)
+│   │   └── globals.css
+│   ├── components/
+│   │   ├── admin/               # UserManagementModal
+│   │   ├── chat/                # MiniChatWidget
+│   │   ├── help/                # ShortcutsHelpModal
+│   │   ├── kanban/              # BoardsHub, KanbanBoard, BoardColumn, TaskCard
+│   │   ├── layout/              # Header, Sidebar
+│   │   ├── settings/            # SettingsModal
+│   │   ├── task/                # CreateTaskModal, TaskDetailSheet
+│   │   ├── timeline/            # TimelineView
+│   │   ├── unit/                # CreateUnitModal, MasterUnitModal
+│   │   └── ThemeInitializer.tsx
+│   ├── hooks/useDebounce.ts
+│   ├── lib/
+│   │   ├── auth.ts              # Hash password, token, getSessionUser()
+│   │   ├── chatEvents.ts        # EventEmitter untuk SSE chat
+│   │   ├── db.ts                # Pool mysql2 + helper query/execute
+│   │   ├── unit-similarity.ts
+│   │   └── utils.ts
+│   ├── store/useKanbanStore.ts  # Global state Zustand
+│   ├── types/index.ts           # Tipe domain
+│   └── proxy.ts                 # Redirect ke /login jika belum ada cookie
+├── schema.sql                   # Skema dasar
+├── seed.sql                     # Data contoh
+└── project_design_document.md   # Dokumen desain awal
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+## API
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+| Endpoint | Method | Keterangan |
+|---|---|---|
+| `/api/auth/register` | POST | Daftar (status `pending`) |
+| `/api/auth/login` | POST | Login, set cookie `auth_token` |
+| `/api/auth/logout` | POST | Logout |
+| `/api/auth/me` | GET | User yang sedang login |
+| `/api/board` | GET | Data board (kolom, tugas, label) |
+| `/api/units` | GET, POST, PATCH, DELETE | Board / proyek per unit |
+| `/api/master-units` | GET, POST, PATCH | Master unit |
+| `/api/columns` | POST, PATCH, DELETE | Kolom Kanban |
+| `/api/tasks` | POST, PATCH, DELETE | Tugas (buat, pindah, hapus) |
+| `/api/tasks/[id]` | GET, PUT | Detail & update tugas |
+| `/api/tasks/[id]/comments` | POST | Komentar |
+| `/api/tasks/[id]/attachments` | POST, DELETE | Lampiran |
+| `/api/messages` | GET, POST | Percakapan & pesan |
+| `/api/messages/read` | POST | Tandai dibaca |
+| `/api/messages/typing` | POST | Indikator mengetik |
+| `/api/messages/sse` | GET | Stream real-time |
+| `/api/notifications` | GET, PATCH | Notifikasi |
+| `/api/upload/image` | POST | Upload gambar chat/komentar (maks 20 MB) |
+| `/api/users` | GET | Daftar pengguna |
+| `/api/admin/users` | GET, PATCH, DELETE | Kelola pengguna (khusus admin) |
+| `/api/settings` | PATCH | Profil & password |
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## Instalasi
 
-## Learn More
+### Prasyarat
 
-To learn more about Next.js, take a look at the following resources:
+- Node.js 20+
+- MySQL 8 / MariaDB (contoh: Laragon)
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+### 1. Install dependency
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+```bash
+npm install
+```
 
-## Deploy on Vercel
+### 2. Konfigurasi `.env`
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+```env
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_USER=root
+DB_PASSWORD=
+DB_NAME=kanbandb
+AUTH_SECRET=ganti-dengan-string-acak-panjang
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+> Jika `AUTH_SECRET` tidak diisi, dipakai default hardcoded di `src/lib/auth.ts`. **Wajib diisi di production.**
+
+### 3. Siapkan database
+
+```bash
+mysql -u root -e "CREATE DATABASE IF NOT EXISTS kanbandb CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci"
+mysql -u root kanbandb < schema.sql
+```
+
+Kolom berikut dipakai aplikasi tetapi **belum ada** di `schema.sql` maupun skrip migrasi, jadi jalankan manual:
+
+```sql
+ALTER TABLE users
+  ADD COLUMN password_hash VARCHAR(255) NULL,
+  ADD COLUMN role ENUM('admin','user') NOT NULL DEFAULT 'user',
+  ADD COLUMN status ENUM('pending','active','rejected') NOT NULL DEFAULT 'pending',
+  ADD COLUMN last_active_at TIMESTAMP NULL;
+ALTER TABLE comments ADD COLUMN image_url VARCHAR(500) NULL;
+ALTER TABLE messages ADD COLUMN image_url VARCHAR(500) NULL;
+```
+
+Lalu jalankan seed dan migrasi (urutan ini):
+
+```bash
+mysql -u root kanbandb < seed.sql
+node scripts/migrate_attachments.js
+node scripts/migrate_activity_logs.js
+node scripts/migrate_boards.js
+node scripts/migrate_master_units.js
+node scripts/migrate_v3.js
+node scripts/seed_units.js   # opsional, board default per unit
+```
+
+> Skrip di `scripts/` memakai koneksi hardcoded (`root@127.0.0.1`, tanpa password, db `kanbandb`). Sesuaikan jika berbeda.
+
+### 4. Buat admin pertama
+
+Daftar lewat `/login`, lalu promosikan akun tersebut:
+
+```sql
+UPDATE users SET role = 'admin', status = 'active' WHERE email = 'email@anda.com';
+```
+
+### 5. Jalankan
+
+```bash
+npm run dev      # development, http://localhost:3000
+npm run build    # build production
+npm start        # jalankan hasil build
+npm run lint     # ESLint
+```
+
+## Alur Autentikasi
+
+1. User register → status `pending`, semua admin dapat notifikasi.
+2. Admin approve di menu **Kelola Pengguna** → status `active`.
+3. Login → cookie `auth_token` (berlaku 7 hari).
+4. `src/proxy.ts` me-redirect halaman non-API ke `/login` jika cookie tidak ada; validasi token dilakukan di dalam route API lewat `getSessionUser()`. Route `/api/*` tidak dicegat proxy, jadi tiap route harus memeriksa sesi sendiri (contoh: `/api/board` saat ini tidak memeriksa).
+
+## Catatan & Batasan
+
+- **Real-time chat in-process**: SSE memakai `EventEmitter` di memori, jadi hanya jalan di satu instance server. Untuk multi-instance perlu Redis pub/sub atau layanan sejenis.
+- **File upload** disimpan di `public/uploads/` (disk lokal), tidak cocok untuk hosting serverless.
+- **`users.password_plain`** menyimpan password dalam teks biasa (dipakai fitur admin). Pertimbangkan untuk dihapus sebelum production.
+- `sharp` dipakai di route upload tetapi tidak tercantum langsung di `package.json` (ikut sebagai dependency Next.js). Tambahkan `npm i sharp` jika error saat build.
