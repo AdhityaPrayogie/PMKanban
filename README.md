@@ -66,6 +66,7 @@ Status tiket: `Open` → `Proses` → `Selesai` / `Batal`. `total_menit` dihitun
 
 ```
 PMkanban/
+├── docs/                        # BRD.md, PRD.md (kebutuhan bisnis & produk)
 ├── prisma/
 │   └── schema.prisma            # Referensi skema (tidak dipakai runtime)
 ├── public/
