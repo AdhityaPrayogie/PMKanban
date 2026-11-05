@@ -3,7 +3,7 @@ import ExcelJS from 'exceljs';
 import { query } from '@/lib/db';
 import { requireHelpdesk } from '@/lib/auth';
 import { isDate, safeCell } from '@/lib/helpdesk';
-import { TICKET_SELECT, dbError, ticketFilter } from '@/lib/helpdeskDb';
+import { TICKET_SELECT, dbError, ticketFilter, toTicket } from '@/lib/helpdeskDb';
 
 const MONTH = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Ags', 'Sep', 'Okt', 'Nov', 'Des'];
 
@@ -42,6 +42,8 @@ export async function GET(request: NextRequest) {
       { header: 'PIC', key: 'it_pic', width: 26 },
       { header: 'Customer', key: 'customer', width: 40 },
       { header: 'Kategori', key: 'kategori_pelayanan', width: 15 },
+      { header: 'Barang', key: 'barang', width: 40 },
+      { header: 'Biaya (Rp)', key: 'biaya', width: 14 },
     ];
     sheet.getRow(1).eachCell((cell) => {
       cell.font = { bold: true, size: 11, name: 'Calibri', color: { argb: 'FFFFFFFF' } };
@@ -50,10 +52,12 @@ export async function GET(request: NextRequest) {
     });
     sheet.views = [{ state: 'frozen', ySplit: 1 }];
 
-    let totalMenit = 0;
-    rows.forEach((r, i) => {
+    let totalMenit = 0, totalRp = 0;
+    rows.forEach((raw, i) => {
+      const r = toTicket(raw);
       const menit = Number(r.total_menit) || 0;
       totalMenit += menit;
+      totalRp += r.total_biaya;
       const [y, m, d] = r.tanggal.split('-');
       const row = sheet.addRow({
         no: i + 1,
@@ -66,17 +70,21 @@ export async function GET(request: NextRequest) {
         it_pic: safeCell(r.staff_names ?? ''),
         customer: safeCell(r.pic_nama ?? r.requester_name ?? ''),
         kategori_pelayanan: r.jenis_pelayanan,
+        barang: safeCell(r.biaya.map((b) => `${b.nama_barang} ${b.qty}x${b.harga}`).join('; ')),
+        biaya: r.total_biaya || '',
       });
       row.eachCell((cell, col) => {
         cell.font = { size: 11, name: 'Calibri' };
-        cell.alignment = { horizontal: [3, 8, 9].includes(col) ? 'left' : 'center', vertical: 'middle' };
+        cell.alignment = { horizontal: [3, 8, 9, 11].includes(col) ? 'left' : col === 12 ? 'right' : 'center', vertical: 'middle' };
       });
+      row.getCell(12).numFmt = '#,##0';
       row.getCell(10).font = { bold: true, size: 10, name: 'Arial', color: { argb: 'FF0A53A8' } };
     });
 
     const f = (sheet.lastRow?.number ?? 1) + 1;
     sheet.mergeCells(`A${f}:F${f}`);
-    for (const [ref, value] of [[`A${f}`, 'TOTAL MENIT'], [`G${f}`, totalMenit]] as const) {
+    sheet.getCell(`L${f}`).numFmt = '#,##0';
+    for (const [ref, value] of [[`A${f}`, 'TOTAL MENIT'], [`G${f}`, totalMenit], [`K${f}`, 'TOTAL BIAYA'], [`L${f}`, totalRp]] as const) {
       const c = sheet.getCell(ref);
       c.value = value;
       c.font = { bold: true, size: 11, name: 'Calibri' };

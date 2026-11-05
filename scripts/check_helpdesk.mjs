@@ -1,6 +1,6 @@
 // Self-check for src/lib/helpdesk.ts. Run: node scripts/check_helpdesk.mjs (Node 22.18+/24, type stripping)
 import assert from 'node:assert/strict';
-import { validateTicket, diffTicket, safeCell, canAccessHelpdesk, canManageHelpdeskMaster } from '../src/lib/helpdesk.ts';
+import { validateTicket, diffTicket, safeCell, canAccessHelpdesk, canManageHelpdeskMaster, parseBiaya } from '../src/lib/helpdesk.ts';
 
 const ok = {
   tanggal: '2026-09-10', jam_mulai: '08:00', jam_selesai: '08:45', pic_id: 5, kategori_id: 1,
@@ -30,6 +30,23 @@ assert.deepEqual(diffTicket({ status: 'Open', tindakan: null }, { status: 'Prose
   { field: 'status', label: 'Status', old: 'Open', new: 'Proses' },
 ]);
 assert.equal(diffTicket({ total_menit: 1, tindakan: '' }, { total_menit: 2, tindakan: null }).length, 0);
+
+const tinta = { nama_barang: ' Tinta hitam ', qty: 2, harga: 85000 };
+assert.deepEqual(parseBiaya([tinta, { nama_barang: 'Kabel', qty: 1, harga: 0 }]), [
+  { nama_barang: 'Tinta hitam', qty: 2, harga: 85000 }, { nama_barang: 'Kabel', qty: 1, harga: 0 },
+]);
+assert.deepEqual(parseBiaya(undefined), []);
+assert.match(parseBiaya([{ ...tinta, qty: 0 }]), /Qty/);
+assert.match(parseBiaya([{ ...tinta, harga: -1 }]), /Harga/);
+assert.match(parseBiaya([{ ...tinta, harga: 1.5 }]), /Harga/);
+assert.match(parseBiaya([{ ...tinta, nama_barang: '' }]), /Nama barang/);
+assert.match(parseBiaya('x'), /tidak valid/);
+assert.match(validateTicket({ ...ok, biaya: [{ ...tinta, qty: 'a' }] }).error, /Qty/);
+assert.equal(validateTicket({ ...ok, biaya: [tinta] }).data.biaya.length, 1);
+assert.deepEqual(diffTicket({ biaya: [] }, { biaya: [{ nama_barang: 'Tinta', qty: 2, harga: 5 }] }), [
+  { field: 'biaya', label: 'Biaya', old: null, new: 'Tinta 2x5' },
+]);
+assert.equal(diffTicket({ biaya: [{ nama_barang: 'A', qty: 1, harga: 1 }] }, { biaya: [{ nama_barang: 'A', qty: 1, harga: 1 }] }).length, 0);
 
 assert.equal(safeCell('=HYPERLINK("x")'), `'=HYPERLINK("x")`);
 assert.equal(safeCell('-1+2'), `'-1+2`);

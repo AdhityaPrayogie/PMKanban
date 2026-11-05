@@ -17,6 +17,8 @@ export async function api<T = any>(url: string, init?: RequestInit): Promise<T> 
 
 export const today = () => new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD, local time
 
+export const rupiah = (n: number) => `Rp ${n.toLocaleString('id-ID')}`;
+
 export const fmtDate = (iso: string) => {
   const [y, m, d] = iso.split('-');
   return `${d}/${m}/${y}`;

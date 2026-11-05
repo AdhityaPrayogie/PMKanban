@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { query, withTransaction } from '@/lib/db';
 import { requireHelpdesk } from '@/lib/auth';
 import { canManageHelpdeskMaster, diffTicket, validateTicket } from '@/lib/helpdesk';
-import { addHistory, allTdStaff, dbError, loadTicket, notify, parseId, readJson, setStaff } from '@/lib/helpdeskDb';
+import { addHistory, allTdStaff, dbError, loadTicket, notify, parseId, readJson, setBiaya, setStaff } from '@/lib/helpdeskDb';
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -49,6 +49,7 @@ export async function PUT(request: Request, { params }: Ctx) {
          d.isi_helpdesk, d.tindakan, d.status, d.jenis_pelayanan, id]
       );
       await setStaff(conn, id, d.staff_ids);
+      await setBiaya(conn, id, d.biaya);
       const after = (await loadTicket(id, conn))!;
       const changes = diffTicket(before, after);
       if (changes.length) await addHistory(conn, id, 'update', user.id, changes);

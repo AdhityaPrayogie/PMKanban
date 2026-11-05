@@ -9,7 +9,7 @@ import { cn } from '@/lib/utils';
 import { TicketForm } from './TicketForm';
 import { TicketTable } from './TicketTable';
 import { HelpdeskMaster } from './HelpdeskMaster';
-import { ErrorText, Modal, StatusBadge, api, btnGhost, btnPrimary, cardCls, fmtDate, inputCls, labelCls, useMaster } from './ui';
+import { ErrorText, Modal, StatusBadge, api, btnGhost, btnPrimary, cardCls, fmtDate, inputCls, labelCls, rupiah, useMaster } from './ui';
 
 type Tab = 'dashboard' | 'antrian' | 'input' | 'data' | 'trend' | 'master';
 
@@ -117,6 +117,16 @@ function DayModal({ date, onClose }: { date: string; onClose: () => void }) {
               </div>
               <p className="whitespace-pre-line">{t.isi_helpdesk}</p>
               {t.tindakan && <p className="whitespace-pre-line text-[#475569] dark:text-[#94a3b8]">↳ {t.tindakan}</p>}
+              {t.biaya.length > 0 && (
+                <ul className="text-xs rounded-lg bg-[#f8fafc] dark:bg-[#0b1220] px-3 py-1.5">
+                  {t.biaya.map((b, i) => (
+                    <li key={i} className="flex justify-between gap-3 tabular-nums">
+                      <span>{b.nama_barang} × {b.qty} @ {rupiah(b.harga)}</span><span>{rupiah(b.qty * b.harga)}</span>
+                    </li>
+                  ))}
+                  <li className="flex justify-between font-bold border-t border-[#e2e8f0] dark:border-[#1e2a3f] mt-1 pt-1"><span>Total biaya</span><span>{rupiah(t.total_biaya)}</span></li>
+                </ul>
+              )}
               <p className="text-[11px] text-[#64748b]">Staf: {t.staff_names || '-'} · {t.jenis_pelayanan}</p>
             </li>
           ))}
@@ -130,18 +140,18 @@ function Dashboard({ stats, onOpenQueue }: { stats: any; onOpenQueue: () => void
   const [day, setDay] = useState<string | null>(null);
   if (!stats) return <p className="text-sm text-[#64748b]">Memuat…</p>;
   const c = stats.cards;
-  const cards: [string, number, string?][] = [
+  const cards: [string, number | string, string?][] = [
     ['Total', c.total], ['Hari Ini', c.hari_ini], ['Antrian (Open)', c.open, 'text-amber-600'],
     ['Proses', c.proses, 'text-blue-600'], ['Selesai', c.selesai, 'text-emerald-600'], ['Batal', c.batal, 'text-slate-500'],
-    ['Total Menit', c.total_menit],
+    ['Total Menit', c.total_menit], ['Total Biaya', rupiah(c.total_biaya)],
   ];
   return (
     <div className="space-y-4">
-      <div className="grid gap-3 grid-cols-2 sm:grid-cols-4 lg:grid-cols-7">
+      <div className="grid gap-3 grid-cols-2 sm:grid-cols-4 lg:grid-cols-8">
         {cards.map(([label, n, color]) => (
           <div key={label} className={cardCls}>
             <div className="text-xs font-bold text-[#64748b]">{label}</div>
-            <div className={cn('text-3xl font-extrabold', color)}>{n}</div>
+            <div className={cn(typeof n === 'string' ? 'text-xl font-extrabold tabular-nums' : 'text-3xl font-extrabold', color)}>{n}</div>
           </div>
         ))}
       </div>
@@ -248,7 +258,7 @@ function Bars({ rows }: { rows: [string, number][] }) {
 
 const BULAN = ['Jan', 'Feb', 'Mar', 'Apr', 'Mei', 'Jun', 'Jul', 'Agu', 'Sep', 'Okt', 'Nov', 'Des'];
 const ymLabel = (ym: string) => `${BULAN[Number(ym.slice(5, 7)) - 1]} ${ym.slice(2, 4)}`;
-type TrendRow = { ym: string; tiket: number; menit: number; selesai: number; rata_menit: number | null };
+type TrendRow = { ym: string; tiket: number; menit: number; selesai: number; rata_menit: number | null; biaya: number };
 
 // 12 months ending at the selected period: volume chart (click = open that month) + recap table
 function Trend({ stats, onPickMonth }: { stats: any; onPickMonth: (ym: string) => void }) {
@@ -276,7 +286,7 @@ function Trend({ stats, onPickMonth }: { stats: any; onPickMonth: (ym: string) =
           <thead className="text-[#64748b] border-b border-[#e2e8f0] dark:border-[#1e2a3f]">
             <tr>
               <th className="py-2 pr-2 text-left font-semibold">Bulan</th>
-              <th className={th}>Tiket</th><th className={th}>Selesai</th><th className={th}>Total Menit</th><th className={th}>Rata-rata Menit</th>
+              <th className={th}>Tiket</th><th className={th}>Selesai</th><th className={th}>Total Menit</th><th className={th}>Rata-rata Menit</th><th className={th}>Biaya</th>
               {kat.map((k) => <th key={k} className={th}>{k}</th>)}
             </tr>
           </thead>
@@ -286,6 +296,7 @@ function Trend({ stats, onPickMonth }: { stats: any; onPickMonth: (ym: string) =
                 <td className="py-1.5 pr-2 font-semibold">{ymLabel(t.ym)}</td>
                 <td className={td}>{t.tiket}</td><td className={td}>{t.selesai}</td>
                 <td className={td}>{t.menit}</td><td className={td}>{t.rata_menit ?? '-'}</td>
+                <td className={`${td} whitespace-nowrap`}>{t.biaya ? rupiah(t.biaya) : '-'}</td>
                 {kat.map((k) => <td key={k} className={td}>{cell(t.ym, k) || '-'}</td>)}
               </tr>
             ))}
@@ -295,6 +306,7 @@ function Trend({ stats, onPickMonth }: { stats: any; onPickMonth: (ym: string) =
               <td className="py-2 pr-2">Total</td>
               <td className={td}>{sum((t) => t.tiket)}</td><td className={td}>{sum((t) => t.selesai)}</td>
               <td className={td}>{sum((t) => t.menit)}</td><td className={td} />
+              <td className={`${td} whitespace-nowrap`}>{rupiah(sum((t) => t.biaya))}</td>
               {kat.map((k) => <td key={k} className={td}>{trend.reduce((a, t) => a + cell(t.ym, k), 0)}</td>)}
             </tr>
           </tfoot>

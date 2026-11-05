@@ -35,7 +35,11 @@ export interface HdTicket {
   created_at: string;
   staff_names: string | null;
   staff_ids: string[];
+  biaya: HdBiaya[];
+  total_biaya: number;
 }
+
+export interface HdBiaya { nama_barang: string; qty: number; harga: number }
 
 export interface HdMaster { id: number; nama: string; aktif: number }
 
@@ -51,6 +55,7 @@ export interface TicketInput {
   status: HdStatus;
   jenis_pelayanan: HdJenis;
   staff_ids: string[];
+  biaya: HdBiaya[];
 }
 
 const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
@@ -71,6 +76,27 @@ function optTime(v: unknown): string | null | undefined {
   if (v === null || v === undefined || v === '') return null;
   return typeof v === 'string' && TIME_RE.test(v) ? v.slice(0, 5) : undefined;
 }
+
+export const MAX_BIAYA = 50;
+
+// Items/costs used on a ticket. Returns the cleaned list or an error message.
+export function parseBiaya(v: unknown): HdBiaya[] | string {
+  if (v === null || v === undefined) return [];
+  if (!Array.isArray(v) || v.length > MAX_BIAYA) return `Daftar biaya tidak valid (maks ${MAX_BIAYA} barang)`;
+  const out: HdBiaya[] = [];
+  for (const b of v) {
+    const nama_barang = String(b?.nama_barang ?? '').trim();
+    const qty = Number(b?.qty);
+    const harga = Number(b?.harga);
+    if (!nama_barang || nama_barang.length > 150) return 'Nama barang wajib diisi (maks 150 karakter)';
+    if (!Number.isInteger(qty) || qty < 1 || qty > 9999) return `Qty "${nama_barang}" harus 1-9999`;
+    if (!Number.isInteger(harga) || harga < 0 || harga > 2_000_000_000) return `Harga "${nama_barang}" tidak valid`;
+    out.push({ nama_barang, qty, harga });
+  }
+  return out;
+}
+
+const biayaText = (items: HdBiaya[]) => items.map((b) => `${b.nama_barang} ${b.qty}x${b.harga}`).join('; ');
 
 export function validateTicket(b: any): { data?: TicketInput; error?: string } {
   if (!b || typeof b !== 'object') return { error: 'Body tidak valid' };
@@ -94,10 +120,12 @@ export function validateTicket(b: any): { data?: TicketInput; error?: string } {
     ? [...new Set<string>(b.staff_ids.filter((s: unknown) => typeof s === 'string' && s))]
     : [];
   if (b.status !== 'Open' && staff_ids.length === 0) return { error: 'Pilih minimal 1 staf IT untuk status selain Open' };
+  const biaya = parseBiaya(b.biaya);
+  if (typeof biaya === 'string') return { error: biaya };
   return {
     data: {
       tanggal: b.tanggal, jam_mulai, jam_selesai, pic_id, kategori_id, unit_kerja_id,
-      isi_helpdesk, tindakan, status: b.status, jenis_pelayanan: b.jenis_pelayanan, staff_ids,
+      isi_helpdesk, tindakan, status: b.status, jenis_pelayanan: b.jenis_pelayanan, staff_ids, biaya,
     },
   };
 }
@@ -114,15 +142,17 @@ export const HISTORY_FIELDS: [string, string][] = [
   ['status', 'Status'],
   ['jenis_pelayanan', 'Jenis'],
   ['staff_names', 'Staf IT'],
+  ['biaya', 'Biaya'],
 ];
 
 export interface HdChange { field: string; label: string; old?: string | null; new?: string | null }
 
 // Compares display rows (names, not ids) so history reads well without joins
 export function diffTicket(before: Record<string, any>, after: Record<string, any>): HdChange[] {
+  const val = (o: Record<string, any>, f: string) => (f === 'biaya' ? biayaText(o.biaya ?? []) || null : o[f] ?? null);
   const s = (v: unknown) => (v === null || v === undefined ? '' : String(v));
-  return HISTORY_FIELDS.filter(([f]) => s(before[f]) !== s(after[f])).map(([field, label]) => ({
-    field, label, old: before[field] ?? null, new: after[field] ?? null,
+  return HISTORY_FIELDS.filter(([f]) => s(val(before, f)) !== s(val(after, f))).map(([field, label]) => ({
+    field, label, old: val(before, field), new: val(after, field),
   }));
 }
 

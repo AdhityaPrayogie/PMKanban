@@ -3,7 +3,7 @@ import { query, withTransaction } from '@/lib/db';
 import { requireHelpdesk } from '@/lib/auth';
 import { validateTicket } from '@/lib/helpdesk';
 import {
-  TICKET_SELECT, addHistory, allTdStaff, dbError, loadTicket, notify, readJson, setStaff, short, ticketFilter, toTicket,
+  TICKET_SELECT, addHistory, allTdStaff, dbError, loadTicket, notify, readJson, setBiaya, setStaff, short, ticketFilter, toTicket,
 } from '@/lib/helpdeskDb';
 
 // GET /api/helpdesk?start&end&status&kategori_id&staff_id&sumber&q&limit&offset -> { rows, total }
@@ -54,10 +54,12 @@ export async function POST(request: Request) {
          d.isi_helpdesk, d.tindakan, d.status, d.jenis_pelayanan, user.id]
       );
       await setStaff(conn, r.insertId, d.staff_ids);
+      await setBiaya(conn, r.insertId, d.biaya);
       const t = await loadTicket(r.insertId, conn);
       await addHistory(conn, r.insertId, 'create', user.id, [
         { field: 'status', label: 'Status', new: d.status },
         { field: 'staff_names', label: 'Staf IT', new: t?.staff_names ?? null },
+        ...(d.biaya.length ? [{ field: 'biaya', label: 'Biaya', new: `Rp ${t?.total_biaya ?? 0} (${d.biaya.length} barang)` }] : []),
       ]);
       return r.insertId as number;
     });

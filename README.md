@@ -23,11 +23,11 @@ Logbook layanan IT pengganti `it_logbook`. Halaman `/helpdesk` khusus unit TD (`
 
 | Tab | Isi |
 |---|---|
-| **Dashboard** | Kartu ringkasan (Total, Hari Ini, Open, Proses, Selesai, Batal, Total Menit), grafik **Tiket per Hari** (klik batang = modal daftar tiket hari itu), aktivitas terbaru, per kategori. Periode default = bulan tiket terakhir. |
+| **Dashboard** | Kartu ringkasan (Total, Hari Ini, Open, Proses, Selesai, Batal, Total Menit, Total Biaya), grafik **Tiket per Hari** (klik batang = modal daftar tiket hari itu), aktivitas terbaru, per kategori. Periode default = bulan tiket terakhir. |
 | **Antrian** | Pengajuan berstatus `Open`: **Ambil** (jadi `Proses`, staf = diri sendiri, jam mulai = sekarang jika kosong) atau **Tugaskan** ke staf lain. |
-| **Input** | Input tiket langsung: tanggal, jam mulai/selesai (**total menit** tampil otomatis), PIC (nama baru otomatis masuk master), kategori, unit kerja, isi, tindakan, status, jenis pelayanan, staf IT. |
-| **Data** | Tabel semua tiket + kolom **Total Menit**, filter tanggal/status/kategori/staf/sumber/cari, paging 25, edit, riwayat perubahan, hapus permanen (pembuat atau admin TD), export Excel (format Laporan_Logbook). |
-| **Trend Helpdesk** | Grafik tiket 12 bulan (klik = buka dashboard bulan itu) + rekap per bulan: tiket, selesai, total & rata-rata menit, jumlah per kategori. |
+| **Input** | Input tiket langsung: tanggal, jam mulai/selesai (**total menit** tampil otomatis), PIC (nama baru otomatis masuk master), kategori, unit kerja, isi, tindakan, status, jenis pelayanan, staf IT, **biaya / barang keluar** (banyak baris: nama barang, qty, harga satuan; total otomatis). |
+| **Data** | Tabel semua tiket + kolom **Total Menit** dan **Biaya** (nama barang), filter tanggal/status/kategori/staf/sumber/cari, paging 25, edit, riwayat perubahan, hapus permanen (pembuat atau admin TD), export Excel (format Laporan_Logbook). |
+| **Trend Helpdesk** | Grafik tiket 12 bulan (klik = buka dashboard bulan itu) + rekap per bulan: tiket, selesai, total & rata-rata menit, biaya, jumlah per kategori. |
 | **Master Data** | Kategori, unit kerja, PIC: tambah, ganti nama, aktif/nonaktif (khusus admin TD). |
 
 **Pengajuan Helpdesk** (`/pengajuan`, semua user): kirim keluhan ke TD (kategori + lokasi + isi), pantau status, hapus selama masih `Open`. TD menerima notifikasi realtime; pemohon dinotifikasi saat tiket diambil atau statusnya berubah. Staf yang ditugaskan juga dinotifikasi.

@@ -6,7 +6,7 @@ import { HELPDESK_UNIT_ID, STATUS, canManageHelpdeskMaster, type HdMaster, type 
 import { useKanbanStore } from '@/store/useKanbanStore';
 import { useDebounce } from '@/hooks/useDebounce';
 import { TicketForm } from './TicketForm';
-import { Modal, StatusBadge, api, btnGhost, cardCls, fmtDate, inputCls, labelCls } from './ui';
+import { Modal, StatusBadge, api, btnGhost, cardCls, fmtDate, inputCls, labelCls, rupiah } from './ui';
 
 const PAGE = 25;
 
@@ -109,7 +109,7 @@ export function TicketTable({ kategori, unitKerja, pic, version, onChanged }: {
             <tr>
               <th className="py-2 pr-2">#</th><th className="pr-2">Tanggal</th><th className="pr-2">Jam</th><th className="pr-2 text-right whitespace-nowrap">Total Menit</th><th className="pr-2">Peminta</th>
               <th className="pr-2">Kategori</th><th className="pr-2">Isi Helpdesk</th><th className="pr-2">Staf</th>
-              <th className="pr-2">Status</th><th className="pr-2">Sumber</th><th><span className="sr-only">Aksi</span></th>
+              <th className="pr-2 text-right">Biaya</th><th className="pr-2">Status</th><th className="pr-2">Sumber</th><th><span className="sr-only">Aksi</span></th>
             </tr>
           </thead>
           <tbody>
@@ -131,6 +131,12 @@ export function TicketTable({ kategori, unitKerja, pic, version, onChanged }: {
                   {t.tindakan && <div className="text-[11px] text-[#64748b] line-clamp-1">↳ {t.tindakan}</div>}
                 </td>
                 <td className="pr-2">{t.staff_names || '-'}</td>
+                <td className="pr-2 text-right whitespace-nowrap tabular-nums">
+                  {t.total_biaya ? rupiah(t.total_biaya) : '-'}
+                  {t.biaya.length > 0 && <div className="text-[11px] text-[#64748b] max-w-40 truncate ml-auto" title={t.biaya.map((b) => `${b.nama_barang} ×${b.qty}`).join(', ')}>
+                    {t.biaya.map((b) => b.nama_barang).join(', ')}
+                  </div>}
+                </td>
                 <td className="pr-2"><StatusBadge status={t.status} /></td>
                 <td className="pr-2">{t.requested_by ? 'Pengajuan' : 'Langsung'}</td>
                 <td className="whitespace-nowrap">
@@ -142,7 +148,7 @@ export function TicketTable({ kategori, unitKerja, pic, version, onChanged }: {
                 </td>
               </tr>
             ))}
-            {data && !data.rows.length && <tr><td colSpan={11} className="py-6 text-center text-[#64748b]">Tidak ada tiket.</td></tr>}
+            {data && !data.rows.length && <tr><td colSpan={12} className="py-6 text-center text-[#64748b]">Tidak ada tiket.</td></tr>}
           </tbody>
         </table>
         {data && data.total > PAGE && (

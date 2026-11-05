@@ -25,9 +25,10 @@ export async function GET(request: NextRequest) {
       query<any[]>(
         `SELECT COUNT(*) AS total, SUM(t.tanggal = CURDATE()) AS hari_ini,
            SUM(t.status = 'Proses') AS proses, SUM(t.status = 'Selesai') AS selesai, SUM(t.status = 'Batal') AS batal,
-           COALESCE(SUM(t.total_menit), 0) AS total_menit
+           COALESCE(SUM(t.total_menit), 0) AS total_menit,
+           (SELECT COALESCE(SUM(b.qty * b.harga), 0) FROM hd_ticket_biaya b JOIN hd_tickets t ON t.id = b.ticket_id WHERE ${range}) AS total_biaya
          FROM hd_tickets t WHERE ${range}`,
-        [start, start]
+        [start, start, start, start]
       ),
       // The queue is not month-bound: an old Open request is still waiting
       query<any[]>(`SELECT COUNT(*) AS open FROM hd_tickets WHERE status = 'Open'`),
@@ -44,7 +45,8 @@ export async function GET(request: NextRequest) {
       ),
       query<any[]>(
         `SELECT DATE_FORMAT(t.tanggal, '%Y-%m') AS ym, COUNT(*) AS tiket, COALESCE(SUM(t.total_menit), 0) AS menit,
-           ROUND(AVG(t.total_menit)) AS rata_menit, SUM(t.status = 'Selesai') AS selesai
+           ROUND(AVG(t.total_menit)) AS rata_menit, SUM(t.status = 'Selesai') AS selesai,
+           COALESCE(SUM((SELECT SUM(b.qty * b.harga) FROM hd_ticket_biaya b WHERE b.ticket_id = t.id)), 0) AS biaya
          FROM hd_tickets t WHERE ${trendRange} GROUP BY ym`,
         [start, start]
       ),
@@ -67,13 +69,13 @@ export async function GET(request: NextRequest) {
       cards: {
         total: Number(cards.total), hari_ini: Number(cards.hari_ini ?? 0), open: Number(queue.open),
         proses: Number(cards.proses ?? 0), selesai: Number(cards.selesai ?? 0), batal: Number(cards.batal ?? 0),
-        total_menit: Number(cards.total_menit),
+        total_menit: Number(cards.total_menit), total_biaya: Number(cards.total_biaya),
       },
       trend: months.map((ym) => {
         const r = byYm.get(ym);
         return {
           ym, tiket: Number(r?.tiket ?? 0), menit: Number(r?.menit ?? 0), selesai: Number(r?.selesai ?? 0),
-          rata_menit: r?.rata_menit == null ? null : Number(r.rata_menit),
+          rata_menit: r?.rata_menit == null ? null : Number(r.rata_menit), biaya: Number(r?.biaya ?? 0),
         };
       }),
       trendKategori: trendKategori.map((r) => ({ ym: r.ym, nama: r.nama, tiket: Number(r.tiket) })),

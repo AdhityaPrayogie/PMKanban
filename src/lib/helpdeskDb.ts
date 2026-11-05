@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 import type mysql from 'mysql2/promise';
 import pool, { execute, query } from '@/lib/db';
 import { broadcastNotification } from '@/lib/chatEvents';
-import { HELPDESK_UNIT_ID, HdChange, HdTicket, STATUS, isDate } from '@/lib/helpdesk';
+import { HELPDESK_UNIT_ID, HdBiaya, HdChange, HdTicket, STATUS, isDate } from '@/lib/helpdesk';
 
 type Ex = mysql.Pool | mysql.PoolConnection;
 
@@ -15,7 +15,10 @@ export const TICKET_SELECT = `
     t.pic_id, p.nama AS pic_nama, t.kategori_id, k.nama AS kategori, t.unit_kerja_id, uk.nama AS unit_kerja,
     t.isi_helpdesk, t.tindakan, t.status, t.jenis_pelayanan, t.created_by, cu.name AS creator_name, t.created_at,
     (SELECT GROUP_CONCAT(u.name ORDER BY u.name SEPARATOR ', ') FROM hd_ticket_staff s JOIN users u ON u.id = s.user_id WHERE s.ticket_id = t.id) AS staff_names,
-    (SELECT GROUP_CONCAT(s.user_id ORDER BY s.user_id) FROM hd_ticket_staff s WHERE s.ticket_id = t.id) AS staff_ids
+    (SELECT GROUP_CONCAT(s.user_id ORDER BY s.user_id) FROM hd_ticket_staff s WHERE s.ticket_id = t.id) AS staff_ids,
+    (SELECT JSON_ARRAYAGG(JSON_OBJECT('nama_barang', b.nama_barang, 'qty', b.qty, 'harga', b.harga))
+       FROM (SELECT * FROM hd_ticket_biaya WHERE ticket_id = t.id ORDER BY id) b) AS biaya,
+    (SELECT COALESCE(SUM(b.qty * b.harga), 0) FROM hd_ticket_biaya b WHERE b.ticket_id = t.id) AS total_biaya
   FROM hd_tickets t
   JOIN hd_kategori k ON k.id = t.kategori_id
   JOIN users cu ON cu.id = t.created_by
@@ -48,7 +51,20 @@ export function ticketFilter(sp: URLSearchParams): { where: string; params: any[
   return { where: w.length ? `WHERE ${w.join(' AND ')}` : '', params };
 }
 
-export const toTicket =(r: any): HdTicket => ({ ...r, staff_ids: r.staff_ids ? String(r.staff_ids).split(',') : [] });
+export const toTicket = (r: any): HdTicket => ({
+  ...r,
+  staff_ids: r.staff_ids ? String(r.staff_ids).split(',') : [],
+  biaya: (typeof r.biaya === 'string' ? JSON.parse(r.biaya) : r.biaya) ?? [],
+  total_biaya: Number(r.total_biaya ?? 0),
+});
+
+export async function setBiaya(conn: mysql.PoolConnection, ticketId: number, items: HdBiaya[]) {
+  await conn.query('DELETE FROM hd_ticket_biaya WHERE ticket_id = ?', [ticketId]);
+  if (items.length) {
+    await conn.query('INSERT INTO hd_ticket_biaya (ticket_id, nama_barang, qty, harga) VALUES ?',
+      [items.map((b) => [ticketId, b.nama_barang, b.qty, b.harga])]);
+  }
+}
 
 export async function loadTicket(id: number, ex: Ex = pool): Promise<HdTicket | null> {
   const [rows] = await (ex as mysql.PoolConnection).query<any[]>(`${TICKET_SELECT} WHERE t.id = ?`, [id]);

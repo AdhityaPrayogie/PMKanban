@@ -72,6 +72,18 @@ CREATE TABLE IF NOT EXISTS hd_ticket_history (
   CONSTRAINT fk_hdh_ticket FOREIGN KEY (ticket_id) REFERENCES hd_tickets(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
+-- Biaya / barang keluar per tiket (bisa banyak baris). Rupiah tanpa desimal.
+CREATE TABLE IF NOT EXISTS hd_ticket_biaya (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  ticket_id INT NOT NULL,
+  nama_barang VARCHAR(150) NOT NULL,
+  qty SMALLINT UNSIGNED NOT NULL DEFAULT 1,
+  harga INT UNSIGNED NOT NULL DEFAULT 0,
+  KEY idx_ticket (ticket_id),
+  CONSTRAINT chk_qty CHECK (qty > 0),
+  CONSTRAINT fk_hdb_ticket FOREIGN KEY (ticket_id) REFERENCES hd_tickets(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
 -- ID sama dengan it_logbook.kategori_it agar migrasi penuh nanti cocok
 INSERT IGNORE INTO hd_kategori (id, nama) VALUES
   (1,'Hardware'),(2,'Software'),(3,'Jaringan'),(7,'Streaming'),(8,'SIMRS'),(9,'Telepon');

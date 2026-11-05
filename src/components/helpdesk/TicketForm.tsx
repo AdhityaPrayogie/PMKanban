@@ -1,11 +1,11 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Save } from 'lucide-react';
+import { Plus, Save, Trash2 } from 'lucide-react';
 import { HELPDESK_UNIT_ID, JENIS, STATUS, type HdMaster, type HdTicket } from '@/lib/helpdesk';
 import { useKanbanStore } from '@/store/useKanbanStore';
 import { formatLastActive } from '@/lib/utils';
-import { ErrorText, api, btnPrimary, inputCls, labelCls, today } from './ui';
+import { ErrorText, api, btnGhost, btnPrimary, inputCls, labelCls, rupiah, today } from './ui';
 
 const byName = (rows: HdMaster[], name: string) => rows.find((r) => r.nama.toLowerCase() === name.trim().toLowerCase());
 
@@ -34,6 +34,13 @@ export function TicketForm({
     jenis_pelayanan: ticket?.jenis_pelayanan ?? 'Pelayanan',
     staff_ids: ticket?.staff_ids ?? (activeUser ? [activeUser.id] : []),
   });
+  // Inputs keep strings while typing; converted to numbers on submit
+  const [biaya, setBiaya] = useState(
+    (ticket?.biaya ?? []).map((b) => ({ nama_barang: b.nama_barang, qty: String(b.qty), harga: String(b.harga) }))
+  );
+  const setItem = (i: number, k: 'nama_barang' | 'qty' | 'harga', v: string) =>
+    setBiaya(biaya.map((b, j) => (j === i ? { ...b, [k]: v } : b)));
+  const totalRp = biaya.reduce((a, b) => a + (Number(b.qty) || 0) * (Number(b.harga) || 0), 0);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const set = (k: keyof typeof f) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) =>
@@ -65,6 +72,7 @@ export function TicketForm({
         tanggal: f.tanggal, jam_mulai: f.jam_mulai || null, jam_selesai: f.jam_selesai || null, pic_id,
         kategori_id: Number(f.kategori_id), unit_kerja_id: uk?.id ?? null, isi_helpdesk: f.isi_helpdesk,
         tindakan: f.tindakan, status: f.status, jenis_pelayanan: f.jenis_pelayanan, staff_ids: f.staff_ids,
+        biaya: biaya.map((b) => ({ nama_barang: b.nama_barang, qty: Number(b.qty), harga: Number(b.harga) })),
       });
       const { ticket: saved } = await api<{ ticket: HdTicket }>(ticket ? `/api/helpdesk/${ticket.id}` : '/api/helpdesk', {
         method: ticket ? 'PUT' : 'POST', body,
@@ -148,6 +156,31 @@ export function TicketForm({
               {u.name}
             </label>
           ))}
+        </div>
+      </fieldset>
+      <fieldset className="sm:col-span-3">
+        <legend className={labelCls}>Biaya / barang keluar (opsional)</legend>
+        {biaya.length > 0 && (
+          <div className="space-y-2 mb-2">
+            {biaya.map((b, i) => (
+              <div key={i} className="grid grid-cols-[1fr_5rem_8rem_auto] gap-2 items-center">
+                <input aria-label={`Nama barang ${i + 1}`} placeholder="Nama barang, mis. Tinta hitam" required maxLength={150}
+                  className={inputCls} value={b.nama_barang} onChange={(e) => setItem(i, 'nama_barang', e.target.value)} />
+                <input aria-label={`Qty barang ${i + 1}`} type="number" min={1} max={9999} step={1} required
+                  className={inputCls} value={b.qty} onChange={(e) => setItem(i, 'qty', e.target.value)} />
+                <input aria-label={`Harga satuan barang ${i + 1} (Rp)`} type="number" min={0} step={1} required placeholder="Harga (Rp)"
+                  className={inputCls} value={b.harga} onChange={(e) => setItem(i, 'harga', e.target.value)} />
+                <button type="button" onClick={() => setBiaya(biaya.filter((_, j) => j !== i))}
+                  className="p-1 text-rose-500" aria-label={`Hapus barang ${i + 1}`}><Trash2 className="w-4 h-4" /></button>
+              </div>
+            ))}
+          </div>
+        )}
+        <div className="flex items-center justify-between gap-3">
+          <button type="button" className={btnGhost} onClick={() => setBiaya([...biaya, { nama_barang: '', qty: '1', harga: '' }])}>
+            <Plus className="w-3.5 h-3.5" /> Tambah barang
+          </button>
+          <output aria-live="polite" className="text-sm font-bold">Total biaya: {rupiah(totalRp)}</output>
         </div>
       </fieldset>
       <div className="sm:col-span-3 flex items-center justify-between gap-3">

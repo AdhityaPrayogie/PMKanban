@@ -71,9 +71,16 @@ try {
   const put = { ...ticket, jam_mulai: '10:00', jam_selesai: '09:00' };
   await expect('PUT jam_selesai < jam_mulai -> 400', TD_USER, 'PUT', `/api/helpdesk/${id}`, 400, put);
   await expect('PUT non-TD staff -> 400', TD_USER, 'PUT', `/api/helpdesk/${id}`, 400, { ...put, jam_selesai: '10:30', staff_ids: [MFK] });
+  await expect('PUT bad biaya -> 400', TD_USER, 'PUT', `/api/helpdesk/${id}`, 400,
+    { ...put, jam_selesai: '10:30', biaya: [{ nama_barang: 'Tinta', qty: 0, harga: 1 }] });
   await expect('PUT valid -> 200', TD_USER, 'PUT', `/api/helpdesk/${id}`, 200,
-    { ...put, jam_selesai: '10:30', status: 'Selesai', tindakan: 'Restart' });
-  const { history } = await (await call(TD_USER, 'GET', `/api/helpdesk/${id}`)).json();
+    { ...put, jam_selesai: '10:30', status: 'Selesai', tindakan: 'Restart',
+      biaya: [{ nama_barang: 'Tinta hitam', qty: 2, harga: 85000 }, { nama_barang: 'Kabel LAN', qty: 1, harga: 15000 }] });
+  const { ticket: saved, history } = await (await call(TD_USER, 'GET', `/api/helpdesk/${id}`)).json();
+  assert.equal(saved.total_biaya, 185000, 'total_biaya');
+  assert.deepEqual(saved.biaya.map((b) => b.nama_barang), ['Tinta hitam', 'Kabel LAN'], 'biaya order');
+  assert.ok(history.some((h) => JSON.parse(typeof h.changes === 'string' ? h.changes : JSON.stringify(h.changes)).some((c) => c.field === 'biaya')), 'biaya in history');
+  console.log('ok       biaya saved: 2 barang, Rp 185000, in history');
   assert.ok(history.length >= 3, 'history create+ambil+update');
   console.log(`ok       history rows: ${history.length}`);
 
