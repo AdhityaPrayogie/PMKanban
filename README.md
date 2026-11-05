@@ -13,6 +13,8 @@ Aplikasi **Project Management berbasis Kanban** untuk kolaborasi tim lintas unit
 - **Autentikasi & Approval**: register, lalu akun berstatus `pending` sampai disetujui admin.
 - **Admin**: kelola pengguna (approve/reject/hapus) dan master unit.
 - **Pengaturan profil**: ubah nama, avatar, password.
+- **Helpdesk IT** (`/helpdesk`, khusus unit TD `unit_it`): antrian pengajuan, ambil/tugaskan tiket, input langsung, data + filter, riwayat perubahan, trend helpdesk 12 bulan, export Excel (format Laporan_Logbook), master kategori/unit kerja/PIC (admin TD).
+- **Pengajuan Helpdesk** (`/pengajuan`, semua user): kirim keluhan ke TD, pantau status, hapus selama masih `Open`.
 - **Dark mode** dan **keyboard shortcuts**.
 - **Kompresi gambar otomatis** saat upload (via `sharp`).
 
@@ -58,12 +60,18 @@ PMkanban/
 │   ├── migrate_boards.js        # Kolom board: parent_id, stage, unit_tag, position + data contoh
 │   ├── migrate_master_units.js  # Tabel units + users.unit_id/unit_name
 │   ├── migrate_v3.js            # tasks.customer/unit_tags, users.password_plain
-│   └── seed_units.js            # Board default per unit
+│   ├── seed_units.js            # Board default per unit
+│   ├── migrate_helpdesk.sql     # Tabel hd_* (helpdesk)
+│   ├── seed_helpdesk_sample.sql # 5 tiket contoh dari DB it_logbook
+│   ├── check_helpdesk.mjs       # Self-check validasi/diff helpdesk
+│   └── test_helpdesk_access.mjs # Uji akses API helpdesk (butuh dev server)
 ├── src/
 │   ├── app/
 │   │   ├── api/                 # Route handlers (lihat tabel API)
 │   │   ├── login/page.tsx       # Halaman login & register
 │   │   ├── messages/page.tsx    # Chat layar penuh
+│   │   ├── helpdesk/page.tsx    # Helpdesk IT (guard server: unit TD)
+│   │   ├── pengajuan/page.tsx   # Pengajuan helpdesk (semua user)
 │   │   ├── layout.tsx
 │   │   ├── page.tsx             # Halaman utama (Hub / Board / Timeline)
 │   │   └── globals.css
@@ -71,6 +79,7 @@ PMkanban/
 │   │   ├── admin/               # UserManagementModal
 │   │   ├── chat/                # MiniChatWidget
 │   │   ├── help/                # ShortcutsHelpModal
+│   │   ├── helpdesk/            # AppShell, HelpdeskView, TicketForm, TicketTable, HelpdeskMaster, PengajuanView, ui
 │   │   ├── kanban/              # BoardsHub, KanbanBoard, BoardColumn, TaskCard
 │   │   ├── layout/              # Header, Sidebar
 │   │   ├── settings/            # SettingsModal
@@ -82,7 +91,9 @@ PMkanban/
 │   ├── lib/
 │   │   ├── auth.ts              # Hash password, token, getSessionUser()
 │   │   ├── chatEvents.ts        # EventEmitter untuk SSE chat
-│   │   ├── db.ts                # Pool mysql2 + helper query/execute
+│   │   ├── db.ts                # Pool mysql2 + helper query/execute/withTransaction
+│   │   ├── helpdesk.ts          # Aturan akses, validasi tiket, diff riwayat (pure)
+│   │   ├── helpdeskDb.ts        # Query & helper server helpdesk
 │   │   ├── unit-similarity.ts
 │   │   └── utils.ts
 │   ├── store/useKanbanStore.ts  # Global state Zustand
@@ -118,6 +129,13 @@ PMkanban/
 | `/api/users` | GET | Daftar pengguna |
 | `/api/admin/users` | GET, PATCH, DELETE | Kelola pengguna (khusus admin) |
 | `/api/settings` | PATCH | Profil & password |
+| `/api/helpdesk` | GET, POST | Daftar tiket (filter + paging) / input langsung — **TD** |
+| `/api/helpdesk/[id]` | GET, PUT, DELETE | Detail + riwayat / update / hapus permanen (pembuat atau admin TD) — **TD** |
+| `/api/helpdesk/[id]/ambil` | POST | Ambil tiket `Open` → `Proses` — **TD** |
+| `/api/helpdesk/stats` | GET | Kartu ringkasan, per hari, per kategori, trend 12 bulan — **TD** |
+| `/api/helpdesk/export` | GET | Excel `?start&end[&kategori_ids]` — **TD** |
+| `/api/helpdesk/pengajuan` | GET, POST, DELETE | Pengajuan milik sendiri — semua user |
+| `/api/helpdesk/master/[type]` | GET, POST, PATCH | `kategori`, `unit-kerja`, `pic`; tulis kategori/unit kerja khusus admin TD |
 
 ## Instalasi
 
@@ -177,6 +195,17 @@ node scripts/seed_units.js   # opsional, board default per unit
 ```
 
 > Skrip di `scripts/` memakai koneksi hardcoded (`root@127.0.0.1`, tanpa password, db `kanbandb`). Sesuaikan jika berbeda.
+
+Modul helpdesk:
+
+```bash
+mysql -u root kanbandb < scripts/migrate_helpdesk.sql
+mysql -u root kanbandb < scripts/seed_helpdesk_sample.sql   # opsional, butuh DB it_logbook
+node scripts/check_helpdesk.mjs
+node scripts/test_helpdesk_access.mjs   # opsional, saat `npm run dev` jalan (membuat & menghapus 1 tiket uji)
+```
+
+Akses Helpdesk IT ditentukan oleh `users.unit_id = 'unit_it'` (TD); master kategori/unit kerja juga butuh `role = 'admin'`.
 
 ### 4. Buat admin pertama
 

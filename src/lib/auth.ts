@@ -2,6 +2,8 @@ import crypto from 'crypto';
 import { cookies } from 'next/headers';
 import { query } from '@/lib/db';
 import { User } from '@/types';
+import { NextResponse } from 'next/server';
+import { canAccessHelpdesk, canManageHelpdeskMaster } from '@/lib/helpdesk';
 
 const SECRET = process.env.AUTH_SECRET || 'pmkanban-super-secret-key-32-bytes-long!';
 
@@ -65,7 +67,7 @@ export async function getSessionUser(): Promise<User | null> {
     }
 
     const rows = await query<User[]>(
-      'SELECT id, name, email, avatar_url, role, status, last_active_at FROM users WHERE id = ?',
+      'SELECT id, name, email, avatar_url, role, status, unit_id, unit_name, last_active_at FROM users WHERE id = ?',
       [payload.id]
     );
     if (!rows || rows.length === 0) return null;
@@ -73,4 +75,18 @@ export async function getSessionUser(): Promise<User | null> {
   } catch {
     return null;
   }
+}
+
+// Guard for /api/helpdesk/* (TD only). adminOnly = TD + role admin (master data).
+export async function requireHelpdesk(
+  adminOnly = false
+): Promise<{ user: User; error?: undefined } | { user?: undefined; error: NextResponse }> {
+  const user = await getSessionUser();
+  if (!user) return { error: NextResponse.json({ error: 'Unauthorized' }, { status: 401 }) };
+  const ok = adminOnly ? canManageHelpdeskMaster(user) : canAccessHelpdesk(user);
+  if (!ok) {
+    const msg = adminOnly ? 'Khusus admin unit TD' : 'Khusus unit TD';
+    return { error: NextResponse.json({ error: msg }, { status: 403 }) };
+  }
+  return { user };
 }

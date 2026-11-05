@@ -13,7 +13,6 @@ import {
   ChevronRight,
   Shield,
   HelpCircle,
-  LogOut,
   Moon,
   Sun,
   X,
@@ -21,8 +20,11 @@ import {
   Building2,
   Plus,
   Layers,
+  LifeBuoy,
+  Headset,
 } from 'lucide-react';
 import { useKanbanStore } from '@/store/useKanbanStore';
+import { canAccessHelpdesk } from '@/lib/helpdesk';
 import { cn, formatLastActive } from '@/lib/utils';
 
 export function Sidebar() {
@@ -42,7 +44,6 @@ export function Sidebar() {
     openUserManagement,
     openSettings,
     openHelp,
-    logout,
     isDarkMode,
     toggleDarkMode,
     isMobileSidebarOpen,
@@ -50,6 +51,7 @@ export function Sidebar() {
   } = useKanbanStore();
 
   const isMessagesPage = pathname === '/messages';
+  const isOffBoard = pathname !== '/';
   const otherUsers = allUsers.filter((u) => u.id !== activeUser?.id);
   const isAdmin = activeUser?.role === 'admin';
   const pendingCount = allUsers.filter((u) => u.status === 'pending').length;
@@ -113,7 +115,7 @@ export function Sidebar() {
               }}
               className={cn(
                 'flex items-center gap-2.5 px-2.5 py-2 text-xs font-semibold rounded-lg transition-all cursor-pointer',
-                !isMessagesPage && activeView === 'hub'
+                !isOffBoard && activeView === 'hub'
                   ? 'bg-[#e0edfb] dark:bg-[#1e293b] text-[#034694] dark:text-blue-400 font-bold border border-blue-200 dark:border-blue-900/60 shadow-2xs'
                   : 'text-[#334155] dark:text-[#cbd5e1] hover:bg-[#f1f5f9] dark:hover:bg-[#162032] hover:text-[#0f172a] dark:hover:text-white'
               )}
@@ -130,7 +132,7 @@ export function Sidebar() {
               }}
               className={cn(
                 'flex items-center gap-2.5 px-2.5 py-2 text-xs font-semibold rounded-lg transition-all cursor-pointer',
-                !isMessagesPage && activeView === 'board'
+                !isOffBoard && activeView === 'board'
                   ? 'bg-[#e0edfb] dark:bg-[#1e293b] text-[#034694] dark:text-blue-400 font-bold border border-blue-200 dark:border-blue-900/60 shadow-2xs'
                   : 'text-[#334155] dark:text-[#cbd5e1] hover:bg-[#f1f5f9] dark:hover:bg-[#162032] hover:text-[#0f172a] dark:hover:text-white'
               )}
@@ -147,7 +149,7 @@ export function Sidebar() {
               }}
               className={cn(
                 'flex items-center gap-2.5 px-2.5 py-2 text-xs font-semibold rounded-lg transition-all cursor-pointer',
-                !isMessagesPage && activeView === 'timeline'
+                !isOffBoard && activeView === 'timeline'
                   ? 'bg-[#e0edfb] dark:bg-[#1e293b] text-[#034694] dark:text-blue-400 font-bold border border-blue-200 dark:border-blue-900/60 shadow-2xs'
                   : 'text-[#334155] dark:text-[#cbd5e1] hover:bg-[#f1f5f9] dark:hover:bg-[#162032] hover:text-[#0f172a] dark:hover:text-white'
               )}
@@ -172,6 +174,33 @@ export function Sidebar() {
               </div>
               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
             </Link>
+          </div>
+
+          {/* Layanan IT */}
+          <div className="space-y-1">
+            <div className="px-2.5 pb-1 text-[10px] font-extrabold uppercase tracking-wider text-[#64748b] dark:text-[#94a3b8]">
+              Layanan IT
+            </div>
+            {[
+              { href: '/pengajuan', label: 'Pengajuan Helpdesk', Icon: LifeBuoy, show: true },
+              { href: '/helpdesk', label: 'Helpdesk IT', Icon: Headset, show: canAccessHelpdesk(activeUser) },
+            ].filter((l) => l.show).map(({ href, label, Icon }) => (
+              <Link
+                key={href}
+                href={href}
+                onClick={closeMobileSidebar}
+                aria-current={pathname === href ? 'page' : undefined}
+                className={cn(
+                  'flex items-center gap-2.5 px-2.5 py-2 text-xs font-semibold rounded-lg transition-all cursor-pointer',
+                  pathname === href
+                    ? 'bg-[#e0edfb] dark:bg-[#1e293b] text-[#034694] dark:text-blue-400 font-bold border border-blue-200 dark:border-blue-900/60 shadow-2xs'
+                    : 'text-[#334155] dark:text-[#cbd5e1] hover:bg-[#f1f5f9] dark:hover:bg-[#162032] hover:text-[#0f172a] dark:hover:text-white'
+                )}
+              >
+                <Icon className="w-4 h-4 shrink-0 text-[#034694] dark:text-blue-400" />
+                <span>{label}</span>
+              </Link>
+            ))}
           </div>
 
           {/* List Project Section */}
@@ -221,7 +250,7 @@ export function Sidebar() {
                         selectProject(proj.id);
                         setActiveView('board');
                         closeMobileSidebar();
-                        if (isMessagesPage) {
+                        if (isOffBoard) {
                           window.location.href = '/';
                         }
                       }}
@@ -443,14 +472,6 @@ export function Sidebar() {
                 </div>
               </div>
             </div>
-
-            <button
-              onClick={logout}
-              className="p-2 text-rose-500 hover:bg-rose-50 dark:hover:bg-rose-950/40 rounded-lg transition-colors cursor-pointer shrink-0"
-              title="Logout"
-            >
-              <LogOut className="w-4 h-4" />
-            </button>
           </div>
         </div>
       </aside>
